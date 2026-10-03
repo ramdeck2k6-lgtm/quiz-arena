@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz Arena 2D - Multiplayer Battle</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Outfit', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eef2ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 900: '#312e81' },
+                        arena: { bg: '#0f172a', card: 'rgba(30, 41, 59, 0.75)', border: 'rgba(255, 255, 255, 0.1)' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Styles & Glassmorphism */
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);
+            overflow: hidden;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.125);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        }
+        .btn-glow {
+            transition: all 0.2s ease;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+        .btn-glow:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 25px rgba(99, 102, 241, 0.7);
+        }
+        .btn-glow:active {
+            transform: translateY(1px);
+        }
+        canvas {
+            touch-action: none;
+        }
+        /* Virtual Joystick Styles */
+        #joystickContainer {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="text-white font-sans h-screen w-screen flex flex-col justify-between select-none">
+
+    <!-- Top Navigation Bar -->
+    <header class="relative z-20 p-4 flex justify-between items-center max-w-7xl mx-auto w-full">
+        <div class="flex items-center gap-3 cursor-pointer" onclick="game.showLobby()">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/50">
+                <i class="fa-solid font-black fa-gamepad text-xl"></i>
+            </div>
+            <span class="font-extrabold text-2xl tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-500">
+                QUIZ ARENA 2D
+            </span>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="soundEngine.toggleMute()" id="muteBtn" class="w-10 h-10 rounded-xl glass-panel flex items-center justify-center hover:bg-white/10 transition">
+                <i class="fa-solid fa-volume-high text-indigo-400" id="muteIcon"></i>
+            </button>
+            <button onclick="game.openAvatarModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl glass-panel hover:bg-white/10 transition border border-white/10">
+                <div class="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold" id="headerAvatarPrev">👤</div>
+                <span id="headerPlayerName" class="font-semibold text-sm max-w-[100px] truncate">Player</span>
+                <i class="fa-solid fa-pen text-xs opacity-60"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN SCREEN CONTAINER -->
+    <main class="relative z-10 flex-1 flex items-center justify-center p-4 w-full max-w-7xl mx-auto">
+        
+        <!-- 1. MAIN LOBBY SCREEN -->
+        <div id="lobbyScreen" class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <!-- Left Hero Card -->
+            <div class="glass-panel p-8 rounded-3xl flex flex-col gap-6 border border-white/10">
+                <div>
+                    <span class="text-indigo-400 text-xs font-bold tracking-widest uppercase bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">Action Quiz Battle</span>
+                    <h1 class="text-4xl font-black mt-3 leading-tight">Run, Think, & Win in Real-Time!</h1>
+                    <p class="text-slate-400 text-sm mt-2">Move your avatar to the correct answer tile before time runs out. Outsmart and outmaneuver opponents!</p>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button onclick="game.startSoloGame()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-indigo-700 font-extrabold text-lg btn-glow flex items-center justify-center gap-3">
+                        <i class="fa-solid fa-robot"></i> Play vs AI Bot
+                    </button>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="game.createOnlineRoom()" class="py-3 px-4 rounded-xl glass-panel hover:bg-white/10 font-bold text-sm border border-indigo-500/30 text-indigo-300 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Create Room
+                        </button>
+                        <button onclick="game.openJoinModal()" class="py-3 px-4 rounded-xl glass-panel hover:bg-white/10 font-bold text-sm border border-pink-500/30 text-pink-300 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-right-to-bracket"></i> Join Room
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Options Card / Deck Selector -->
+            <div class="glass-panel p-8 rounded-3xl flex flex-col gap-5 border border-white/10">
+                <h3 class="text-xl font-bold flex items-center justify-between">
+                    <span>Select Question Deck</span>
+                    <button onclick="game.openDeckBuilder()" class="text-xs text-indigo-400 hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-tools"></i> Deck Builder
+                    </button>
+                </h3>
+
+                <div id="deckContainer" class="flex flex-col gap-3 max-h-64 overflow-y-auto pr-1">
+                    <!-- Dynamic Decks Loaded Here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. ROOM LOBBY SCREEN (MULTIPLAYER LOBBY) -->
+        <div id="roomLobbyScreen" class="hidden w-full max-w-xl glass-panel p-8 rounded-3xl flex flex-col gap-6 text-center border border-white/10">
+            <div>
+                <span class="text-xs text-indigo-400 font-bold uppercase tracking-widest">Lobby Room Code</span>
+                <div class="flex items-center justify-center gap-3 mt-1">
+                    <h2 id="roomCodeDisplay" class="text-4xl font-black tracking-widest text-indigo-300">------</h2>
+                    <button onclick="game.copyRoomCode()" class="p-2 glass-panel rounded-lg hover:bg-white/10 text-sm text-slate-300">
+                        <i class="fa-solid fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-slate-900/50 rounded-2xl p-4 border border-white/5">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Joined Players</h4>
+                <div id="playerLobbyList" class="grid grid-cols-2 gap-3 min-h-[120px] items-center">
+                    <!-- Players injected here -->
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="game.leaveRoom()" class="w-1/3 py-3 rounded-xl glass-panel hover:bg-white/10 font-bold text-sm text-slate-300">Leave</button>
+                <button id="startGameHostBtn" onclick="game.startOnlineGame()" class="w-2/3 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-extrabold text-sm btn-glow">Start Match</button>
+            </div>
+        </div>
+
+        <!-- 3. GAME ARENA SCREEN (2D CANVAS) -->
+        <div id="gameScreen" class="hidden relative w-full h-[80vh] flex flex-col items-center justify-center overflow-hidden rounded-3xl glass-panel border border-white/10 shadow-2xl">
+            <!-- HUD TOP BAR -->
+            <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-none">
+                <!-- Question Card -->
+                <div class="glass-panel px-6 py-3 rounded-2xl max-w-2xl border border-white/10 backdrop-blur-md pointer-events-auto">
+                    <div class="text-xs text-indigo-400 font-bold tracking-wider uppercase mb-1 flex justify-between">
+                        <span id="questionNumDisplay">Question 1/10</span>
+                        <span id="categoryDisplay">General Knowledge</span>
+                    </div>
+                    <h3 id="questionTextDisplay" class="text-sm md:text-lg font-bold leading-tight text-white">
+                        Question loading...
+                    </h3>
+                </div>
+
+                <!-- Timer & Power-ups -->
+                <div class="flex items-center gap-3 pointer-events-auto">
+                    <div class="glass-panel w-14 h-14 rounded-2xl flex flex-col items-center justify-center border border-white/10">
+                        <span id="timerText" class="text-xl font-black text-amber-400">15</span>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold">Sec</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div id="canvasWrapper" class="relative w-full h-full">
+                <canvas id="arenaCanvas" class="w-full h-full block rounded-3xl"></canvas>
+            </div>
+
+            <!-- HUD BOTTOM: Power-ups & Emoji Bar -->
+            <div class="absolute bottom-4 left-4 right-4 z-20 flex justify-between items-end pointer-events-none">
+                <!-- Power-ups -->
+                <div class="flex gap-2 pointer-events-auto">
+                    <button onclick="game.usePowerUp('double')" id="powerDoubleBtn" class="glass-panel p-3 rounded-xl border border-amber-500/30 hover:bg-amber-500/20 text-amber-400 text-xs font-bold flex flex-col items-center gap-1 transition">
+                        <i class="fa-solid fa-bolt text-base"></i> 2x Points
+                    </button>
+                    <button onclick="game.usePowerUp('fifty')" id="powerFiftyBtn" class="glass-panel p-3 rounded-xl border border-purple-500/30 hover:bg-purple-500/20 text-purple-400 text-xs font-bold flex flex-col items-center gap-1 transition">
+                        <i class="fa-solid fa-wand-magic-sparkles text-base"></i> 50:50
+                    </button>
+                    <button onclick="game.usePowerUp('speed')" id="powerSpeedBtn" class="glass-panel p-3 rounded-xl border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-400 text-xs font-bold flex flex-col items-center gap-1 transition">
+                        <i class="fa-solid fa-gauge-high text-base"></i> Speed Up
+                    </button>
+                </div>
+
+                <!-- Live Score HUD -->
+                <div id="liveLeaderboard" class="glass-panel p-3 rounded-2xl border border-white/10 flex flex-col gap-1 min-w-[150px] pointer-events-auto text-xs">
+                    <div class="font-bold text-slate-400 mb-1 border-b border-white/10 pb-1">Live Rankings</div>
+                    <!-- Dynamically populated scores -->
+                </div>
+            </div>
+
+            <!-- Mobile On-Screen Touch Joystick Area -->
+            <div id="joystickContainer" class="absolute bottom-6 left-6 z-30 w-28 h-28 rounded-full bg-white/5 border border-white/10 flex items-center justify-center md:hidden pointer-events-auto">
+                <div id="joystickKnob" class="w-12 h-12 rounded-full bg-indigo-500/60 border border-indigo-300 shadow-lg transition-transform duration-75"></div>
+            </div>
+        </div>
+
+        <!-- 4. PODIUM / RESULTS SCREEN -->
+        <div id="podiumScreen" class="hidden w-full max-w-2xl glass-panel p-8 rounded-3xl flex flex-col items-center text-center border border-white/10">
+            <div class="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-3xl mb-2">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h2 class="text-3xl font-black">Match Finished!</h2>
+            <p class="text-slate-400 text-sm mt-1">Here is how everyone performed in the arena</p>
+
+            <div id="podiumList" class="w-full flex flex-col gap-3 my-6">
+                <!-- Winners listed here -->
+            </div>
+
+            <button onclick="game.showLobby()" class="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-extrabold btn-glow">
+                Return to Main Menu
+            </button>
+        </div>
+    </main>
+
+    <!-- MODALS SECTION -->
+    <!-- Custom Deck Builder Modal -->
+    <div id="deckModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-xl p-6 rounded-3xl border border-white/10 flex flex-col gap-4 max-h-[90vh] overflow-hidden">
+            <div class="flex justify-between items-center border-b border-white/10 pb-3">
+                <h3 class="text-xl font-bold">Custom Deck Builder</h3>
+                <button onclick="game.closeDeckModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="flex flex-col gap-3 overflow-y-auto pr-1">
+                <input type="text" id="deckTitleInput" placeholder="Deck Title (e.g. Science Trivia)" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500">
+                
+                <div id="customQuestionsContainer" class="flex flex-col gap-4 mt-2">
+                    <!-- Dynamic Question Editors -->
+                </div>
+
+                <button onclick="game.addCustomQuestionField()" class="py-2 rounded-xl bg-white/5 border border-dashed border-white/20 text-xs font-bold text-indigo-300 hover:bg-white/10">+ Add Question</button>
+            </div>
+            <button onclick="game.saveCustomDeck()" class="w-full py-3 rounded-xl bg-indigo-600 font-bold text-sm btn-glow">Save & Play Deck</button>
+        </div>
+    </div>
+
+    <!-- Avatar Customization Modal -->
+    <div id="avatarModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md p-6 rounded-3xl border border-white/10 flex flex-col gap-5 text-center">
+            <h3 class="text-xl font-bold">Customize Avatar</h3>
+            
+            <div class="relative w-32 h-32 mx-auto bg-slate-900/50 rounded-2xl flex items-center justify-center border border-white/10">
+                <canvas id="avatarPreviewCanvas" width="128" height="128"></canvas>
+            </div>
+
+            <div class="flex flex-col gap-3 text-left">
+                <label class="text-xs font-bold text-slate-400 uppercase">Player Name</label>
+                <input type="text" id="avatarNameInput" maxlength="12" class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500">
+
+                <label class="text-xs font-bold text-slate-400 uppercase mt-2">Body Color</label>
+                <div class="flex gap-2 justify-center" id="colorPickerContainer">
+                    <!-- Color Options -->
+                </div>
+
+                <label class="text-xs font-bold text-slate-400 uppercase mt-2">Hat Style</label>
+                <div class="grid grid-cols-4 gap-2" id="hatPickerContainer">
+                    <!-- Hat Options -->
+                </div>
+            </div>
+
+            <button onclick="game.saveAvatarSettings()" class="w-full py-3 rounded-xl bg-indigo-600 font-bold text-sm btn-glow">Save Profile</button>
+        </div>
+    </div>
+
+    <!-- Join Room Modal -->
+    <div id="joinModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-sm p-6 rounded-3xl border border-white/10 flex flex-col gap-4 text-center">
+            <h3 class="text-xl font-bold">Join Online Room</h3>
+            <input type="text" id="joinCodeInput" placeholder="Enter 6-Digit Code" maxlength="6" class="w-full uppercase text-center tracking-widest bg-slate-900/80 border border-white/10 rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-indigo-500">
+            <div class="flex gap-2">
+                <button onclick="game.closeJoinModal()" class="w-1/2 py-3 rounded-xl glass-panel hover:bg-white/10 font-bold text-sm">Cancel</button>
+                <button onclick="game.joinOnlineRoom()" class="w-1/2 py-3 rounded-xl bg-indigo-600 font-bold text-sm btn-glow">Join Room</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Notification/Message Toast -->
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 glass-panel border border-indigo-500/50 px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl transition-all duration-300 opacity-0 pointer-events-none transform -translate-y-4">
+        Message
+    </div>
+
+    <!-- Firebase Imports (Module Script) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Setup Config Guard
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'quiz-arena-2d';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-api-key",
+            authDomain: "demo.firebaseapp.com",
+            projectId: "demo-project",
+            storageBucket: "demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:123456"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Authenticate User
+        let currentUser = null;
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const res = await signInWithCustomToken(auth, __initial_auth_token);
+                    currentUser = res.user;
+                } else {
+                    const res = await signInAnonymously(auth);
+                    currentUser = res.user;
+                }
+            } catch (err) {
+                console.warn("Firebase auth warning (Running offline/fallback mode):", err);
+            }
+        }
+        initAuth();
+
+        window.firebaseNet = { db, auth, appId, get currentUser() { return currentUser || auth.currentUser; } };
+    </script>
+
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            toggleMute() {
+                this.muted = !this.muted;
+                const icon = document.getElementById('muteIcon');
+                icon.className = this.muted ? "fa-solid fa-volume-xmark text-red-400" : "fa-solid fa-volume-high text-indigo-400";
+            }
+
+            playTone(freq, duration, type = 'sine') {
+                if (this.muted) return;
+                this.init();
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e){}
+            }
+
+            playCorrect() {
+                this.playTone(523.25, 0.1, 'triangle'); // C5
+                setTimeout(() => this.playTone(659.25, 0.15, 'triangle'), 100); // E5
+                setTimeout(() => this.playTone(783.99, 0.25, 'triangle'), 200); // G5
+            }
+
+            playWrong() {
+                this.playTone(220, 0.15, 'sawtooth');
+                setTimeout(() => this.playTone(180, 0.3, 'sawtooth'), 150);
+            }
+
+            playCountdown() {
+                this.playTone(440, 0.05, 'sine');
+            }
+
+            playPowerup() {
+                this.playTone(300, 0.08, 'sine');
+                setTimeout(() => this.playTone(600, 0.12, 'sine'), 80);
+            }
+        }
+        const soundEngine = new SoundEngine();
+
+        const DEFAULT_DECKS = [
+            {
+                id: 'general',
+                name: 'General Knowledge',
+                icon: 'fa-globe',
+                questions: [
+                    { q: "Which planet is known as the Red Planet?", options: ["Venus", "Mars", "Jupiter", "Saturn"], correct: 1 },
+                    { q: "What is the largest ocean on Earth?", options: ["Atlantic", "Indian", "Arctic", "Pacific"], correct: 3 },
+                    { q: "How many elements are on the Periodic Table?", options: ["118", "100", "108", "120"], correct: 0 },
+                    { q: "Who painted the Mona Lisa?", options: ["Van Gogh", "Da Vinci", "Picasso", "Monet"], correct: 1 }
+                ]
+            },
+            {
+                id: 'tech',
+                name: 'Tech & Gaming',
+                icon: 'fa-laptop-code',
+                questions: [
+                    { q: "What does HTML stand for?", options: ["Hyper Text Markup Language", "High Tech Multi Language", "Hyper Transfer Main Loop", "Home Tool Markup Language"], correct: 0 },
+                    { q: "Which company created Python?", options: ["Google", "Guido van Rossum", "Microsoft", "Apple"], correct: 1 },
+                    { q: "In gaming, what does FPS stand for?", options: ["First Person Shooter", "Frames Per Second", "Fast Player Speed", "Both 1 & 2"], correct: 3 }
+                ]
+            }
+        ];
+
+        class QuizCanvasEngine {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.players = [];
+                this.localPlayerId = 'local';
+                this.tiles = [];
+                this.particles = [];
+                this.emojis = [];
+                this.keys = {};
+                this.touchTarget = null;
+                this.active = false;
+
+                // Virtual Joystick State
+                this.joystick = { active: false, startX: 0, startY: 0, dx: 0, dy: 0 };
+
+                this.setupInputs();
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+            }
+
+            resize() {
+                const parent = this.canvas.parentElement;
+                this.canvas.width = parent.clientWidth;
+                this.canvas.height = parent.clientHeight;
+                this.setupTiles();
+            }
+
+            setupTiles() {
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+                const margin = 20;
+                const tileW = (w - margin * 3) / 2;
+                const tileH = (h - margin * 3 - 80) / 2;
+                const topOffset = 70;
+
+                const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b'];
+                const labels = ['A', 'B', 'C', 'D'];
+
+                this.tiles = [
+                    { id: 0, x: margin, y: topOffset, w: tileW, h: tileH, color: colors[0], label: labels[0], text: '', active: true },
+                    { id: 1, x: margin * 2 + tileW, y: topOffset, w: tileW, h: tileH, color: colors[1], label: labels[1], text: '', active: true },
+                    { id: 2, x: margin, y: topOffset + tileH + margin, w: tileW, h: tileH, color: colors[2], label: labels[2], text: '', active: true },
+                    { id: 3, x: margin * 2 + tileW, y: topOffset + tileH + margin, w: tileW, h: tileH, color: colors[3], label: labels[3], text: '', active: true }
+                ];
+            }
+
+            updateTileOptions(options, disabledIndices = []) {
+                this.tiles.forEach((tile, idx) => {
+                    tile.text = options[idx] || '';
+                    tile.active = !disabledIndices.includes(idx);
+                });
+            }
+
+            setupInputs() {
+                // Keyboard Controls
+                window.addEventListener('keydown', (e) => this.keys[e.key] = true);
+                window.addEventListener('keyup', (e) => this.keys[e.key] = false);
+
+                // Mouse/Touch Tap to Move
+                this.canvas.addEventListener('pointerdown', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.touchTarget = {
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top
+                    };
+                });
+
+                // Virtual Touch Joystick Setup
+                const joyContainer = document.getElementById('joystickContainer');
+                const joyKnob = document.getElementById('joystickKnob');
+
+                const handleJoyMove = (clientX, clientY) => {
+                    if (!this.joystick.active) return;
+                    const rect = joyContainer.getBoundingClientRect();
+                    const centerX = rect.left + rect.width / 2;
+                    const centerY = rect.top + rect.height / 2;
+                    
+                    let dx = clientX - centerX;
+                    let dy = clientY - centerY;
+                    const dist = Math.hypot(dx, dy);
+                    const maxDist = rect.width / 2;
+
+                    if (dist > maxDist) {
+                        dx = (dx / dist) * maxDist;
+                        dy = (dy / dist) * maxDist;
+                    }
+
+                    joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+                    this.joystick.dx = dx / maxDist;
+                    this.joystick.dy = dy / maxDist;
+                };
+
+                joyContainer.addEventListener('pointerdown', (e) => {
+                    this.joystick.active = true;
+                    handleJoyMove(e.clientX, e.clientY);
+                });
+
+                window.addEventListener('pointermove', (e) => {
+                    if (this.joystick.active) handleJoyMove(e.clientX, e.clientY);
+                });
+
+                window.addEventListener('pointerup', () => {
+                    if (this.joystick.active) {
+                        this.joystick.active = false;
+                        this.joystick.dx = 0;
+                        this.joystick.dy = 0;
+                        joyKnob.style.transform = 'translate(0px, 0px)';
+                    }
+                });
+            }
+
+            start() {
+                this.active = true;
+                this.loop();
+            }
+
+            stop() {
+                this.active = false;
+            }
+
+            loop() {
+                if (!this.active) return;
+                this.update();
+                this.render();
+                requestAnimationFrame(() => this.loop());
+            }
+
+            update() {
+                const localPlayer = this.players.find(p => p.id === this.localPlayerId);
+                if (localPlayer) {
+                    let vx = 0;
+                    let vy = 0;
+
+                    // Keyboard input
+                    if (this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A']) vx -= 1;
+                    if (this.keys['ArrowRight'] || this.keys['d'] || this.keys['D']) vx += 1;
+                    if (this.keys['ArrowUp'] || this.keys['w'] || this.keys['W']) vy -= 1;
+                    if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) vy += 1;
+
+                    // Virtual Joystick Input
+                    if (this.joystick.active) {
+                        vx = this.joystick.dx;
+                        vy = this.joystick.dy;
+                    }
+
+                    // Tap to move override
+                    if (this.touchTarget && !vx && !vy) {
+                        const dx = this.touchTarget.x - localPlayer.x;
+                        const dy = this.touchTarget.y - localPlayer.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist > 5) {
+                            vx = dx / dist;
+                            vy = dy / dist;
+                        } else {
+                            this.touchTarget = null;
+                        }
+                    } else if (vx || vy) {
+                        this.touchTarget = null; // Keyboard/Joystick overrides touch target
+                    }
+
+                    // Apply Speed & Boundaries
+                    const speed = localPlayer.speed || 4;
+                    localPlayer.x = Math.max(25, Math.min(this.canvas.width - 25, localPlayer.x + vx * speed));
+                    localPlayer.y = Math.max(80, Math.min(this.canvas.height - 25, localPlayer.y + vy * speed));
+
+                    // Detect selected answer tile
+                    localPlayer.currentTile = null;
+                    this.tiles.forEach(tile => {
+                        if (tile.active &&
+                            localPlayer.x >= tile.x && localPlayer.x <= tile.x + tile.w &&
+                            localPlayer.y >= tile.y && localPlayer.y <= tile.y + tile.h) {
+                            localPlayer.currentTile = tile.id;
+                        }
+                    });
+                }
+
+                // Particles Update
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= 0.02;
+                    if (p.alpha <= 0) this.particles.splice(i, 1);
+                }
+            }
+
+            render() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw Answer Zone Tiles
+                this.tiles.forEach(tile => {
+                    this.ctx.save();
+                    this.ctx.fillStyle = tile.active ? tile.color + '22' : '#ffffff05';
+                    this.ctx.strokeStyle = tile.active ? tile.color : '#ffffff10';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(tile.x, tile.y, tile.w, tile.h, 16);
+                    this.ctx.fill();
+                    this.ctx.stroke();
+
+                    if (tile.active) {
+                        // Badge Letter
+                        this.ctx.fillStyle = tile.color;
+                        this.ctx.beginPath();
+                        this.ctx.arc(tile.x + 30, tile.y + 30, 16, 0, Math.PI * 2);
+                        this.ctx.fill();
+
+                        this.ctx.fillStyle = '#ffffff';
+                        this.ctx.font = 'bold 16px Outfit';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.textBaseline = 'middle';
+                        this.ctx.fillText(tile.label, tile.x + 30, tile.y + 30);
+
+                        // Option Text
+                        this.ctx.fillStyle = '#ffffff';
+                        this.ctx.font = '600 15px Outfit';
+                        this.ctx.textAlign = 'left';
+                        this.ctx.fillText(tile.text, tile.x + 60, tile.y + 32, tile.w - 70);
+                    }
+                    this.ctx.restore();
+                });
+
+                // Draw Player Avatars
+                this.players.forEach(p => {
+                    this.ctx.save();
+                    // Glow effect
+                    this.ctx.shadowColor = p.color || '#6366f1';
+                    this.ctx.shadowBlur = 12;
+
+                    // Body Circle
+                    this.ctx.fillStyle = p.color || '#6366f1';
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, 18, 0, Math.PI * 2);
+                    this.ctx.fill();
+
+                    // Eyes
+                    this.ctx.shadowBlur = 0;
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x - 5, p.y - 4, 4, 0, Math.PI * 2);
+                    this.ctx.arc(p.x + 5, p.y - 4, 4, 0, Math.PI * 2);
+                    this.ctx.fill();
+
+                    this.ctx.fillStyle = '#0f172a';
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x - 4, p.y - 4, 2, 0, Math.PI * 2);
+                    this.ctx.arc(p.x + 6, p.y - 4, 2, 0, Math.PI * 2);
+                    this.ctx.fill();
+
+                    // Hat Drawing
+                    if (p.hat === 'crown') {
+                        this.ctx.fillStyle = '#f59e0b';
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(p.x - 12, p.y - 14);
+                        this.ctx.lineTo(p.x - 12, p.y - 26);
+                        this.ctx.lineTo(p.x - 5, p.y - 18);
+                        this.ctx.lineTo(p.x, p.y - 28);
+                        this.ctx.lineTo(p.x + 5, p.y - 18);
+                        this.ctx.lineTo(p.x + 12, p.y - 26);
+                        this.ctx.lineTo(p.x + 12, p.y - 14);
+                        this.ctx.closePath();
+                        this.ctx.fill();
+                    } else if (p.hat === 'cap') {
+                        this.ctx.fillStyle = '#ef4444';
+                        this.ctx.beginPath();
+                        this.ctx.arc(p.x, p.y - 12, 14, Math.PI, 0);
+                        this.ctx.fill();
+                        this.ctx.fillRect(p.x - 14, p.y - 14, 22, 4);
+                    }
+
+                    // Name Tag
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = 'bold 11px Outfit';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(p.name || 'Player', p.x, p.y + 32);
+
+                    this.ctx.restore();
+                });
+
+                // Particles Render
+                this.particles.forEach(p => {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = p.alpha;
+                    this.ctx.fillStyle = p.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.restore();
+                });
+            }
+
+            spawnConfetti(x, y) {
+                const colors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#ec4899'];
+                for (let i = 0; i < 30; i++) {
+                    this.particles.push({
+                        x, y,
+                        vx: (Math.random() - 0.5) * 8,
+                        vy: (Math.random() - 0.5) * 8,
+                        size: Math.random() * 4 + 2,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        alpha: 1
+                    });
+                }
+            }
+        }
+
+        class QuizGameManager {
+            constructor() {
+                this.customDecks = JSON.parse(localStorage.getItem('quiz_arena_decks') || '[]');
+                this.decks = [...DEFAULT_DECKS, ...this.customDecks];
+                this.selectedDeckId = 'general';
+                
+                this.playerProfile = JSON.parse(localStorage.getItem('quiz_arena_avatar') || JSON.stringify({
+                    name: 'Player_' + Math.floor(Math.random() * 900 + 100),
+                    color: '#6366f1',
+                    hat: 'crown'
+                }));
+
+                this.mode = 'solo'; // 'solo' or 'online'
+                this.roomId = null;
+                this.isHost = false;
+                this.currentQuestionIdx = 0;
+                this.timer = 15;
+                this.timerInterval = null;
+
+                this.engine = null;
+                this.customBuilderQuestions = [];
+
+                this.initUI();
+            }
+
+            initUI() {
+                document.getElementById('headerPlayerName').textContent = this.playerProfile.name;
+                this.renderDecks();
+                this.renderAvatarPreview();
+                this.engine = new QuizCanvasEngine('arenaCanvas');
+            }
+
+            renderDecks() {
+                const container = document.getElementById('deckContainer');
+                container.innerHTML = this.decks.map(deck => `
+                    <div onclick="game.selectDeck('${deck.id}')" class="p-4 rounded-2xl glass-panel border cursor-pointer transition flex items-center justify-between ${this.selectedDeckId === deck.id ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/5 hover:bg-white/5'}">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                                <i class="fa-solid ${deck.icon || 'fa-question'} text-lg"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm">${deck.name}</h4>
+                                <span class="text-xs text-slate-400">${deck.questions.length} Questions</span>
+                            </div>
+                        </div>
+                        ${this.selectedDeckId === deck.id ? '<i class="fa-solid fa-circle-check text-indigo-400"></i>' : ''}
+                    </div>
+                `).join('');
+            }
+
+            selectDeck(id) {
+                this.selectedDeckId = id;
+                this.renderDecks();
+            }
+
+            // Screen Switching Logic
+            showScreen(screenId) {
+                ['lobbyScreen', 'roomLobbyScreen', 'gameScreen', 'podiumScreen'].forEach(id => {
+                    document.getElementById(id).classList.add('hidden');
+                });
+                document.getElementById(screenId).classList.remove('hidden');
+            }
+
+            showLobby() {
+                if (this.engine) this.engine.stop();
+                if (this.timerInterval) clearInterval(this.timerInterval);
+                this.showScreen('lobbyScreen');
+            }
+
+            // Toast Helper
+            showToast(msg) {
+                const toast = document.getElementById('toast');
+                toast.textContent = msg;
+                toast.classList.remove('opacity-0', '-translate-y-4');
+                toast.classList.add('opacity-100', 'translate-y-0');
+                setTimeout(() => {
+                    toast.classList.remove('opacity-100', 'translate-y-0');
+                    toast.classList.add('opacity-0', '-translate-y-4');
+                }, 3000);
+            }
+
+            startSoloGame() {
+                this.mode = 'solo';
+                this.currentQuestionIdx = 0;
+                
+                // Set up local player & bot
+                this.engine.localPlayerId = 'player1';
+                this.engine.players = [
+                    { id: 'player1', name: this.playerProfile.name, color: this.playerProfile.color, hat: this.playerProfile.hat, x: 100, y: 200, score: 0, speed: 4 },
+                    { id: 'bot1', name: 'Bot AI', color: '#ec4899', hat: 'cap', x: 300, y: 200, score: 0, speed: 3.5 }
+                ];
+
+                this.showScreen('gameScreen');
+                this.engine.resize();
+                this.engine.start();
+                this.loadQuestion();
+            }
+
+            loadQuestion() {
+                const deck = this.decks.find(d => d.id === this.selectedDeckId) || this.decks[0];
+                if (this.currentQuestionIdx >= deck.questions.length) {
+                    this.endGame();
+                    return;
+                }
+
+                const q = deck.questions[this.currentQuestionIdx];
+                document.getElementById('questionNumDisplay').textContent = `Question ${this.currentQuestionIdx + 1}/${deck.questions.length}`;
+                document.getElementById('categoryDisplay').textContent = deck.name;
+                document.getElementById('questionTextDisplay').textContent = q.q;
+
+                this.engine.updateTileOptions(q.options);
+
+                // Reset positions
+                this.engine.players.forEach((p, idx) => {
+                    p.x = 100 + idx * 150;
+                    p.y = this.engine.canvas.height / 2;
+                });
+
+                // Start timer
+                this.timer = 12;
+                document.getElementById('timerText').textContent = this.timer;
+                if (this.timerInterval) clearInterval(this.timerInterval);
+
+                this.timerInterval = setInterval(() => {
+                    this.timer--;
+                    document.getElementById('timerText').textContent = this.timer;
+                    soundEngine.playCountdown();
+
+                    // Simple Bot AI logic on last 3 seconds
+                    if (this.timer === 3 && this.mode === 'solo') {
+                        const bot = this.engine.players.find(p => p.id === 'bot1');
+                        if (bot) {
+                            const correctTile = this.engine.tiles[q.correct];
+                            bot.x = correctTile.x + correctTile.w / 2;
+                            bot.y = correctTile.y + correctTile.h / 2;
+                        }
+                    }
+
+                    if (this.timer <= 0) {
+                        clearInterval(this.timerInterval);
+                        this.evaluateQuestion(q);
+                    }
+                }, 1000);
+
+                this.updateLiveLeaderboard();
+            }
+
+            evaluateQuestion(q) {
+                this.engine.players.forEach(p => {
+                    if (p.currentTile === q.correct) {
+                        p.score += 100 + (p.doublePoints ? 100 : 0);
+                        soundEngine.playCorrect();
+                        this.engine.spawnConfetti(p.x, p.y);
+                    } else {
+                        soundEngine.playWrong();
+                    }
+                    p.doublePoints = false; // Reset multiplier
+                });
+
+                this.updateLiveLeaderboard();
+
+                setTimeout(() => {
+                    this.currentQuestionIdx++;
+                    this.loadQuestion();
+                }, 2500);
+            }
+
+            updateLiveLeaderboard() {
+                const list = document.getElementById('liveLeaderboard');
+                const sorted = [...this.engine.players].sort((a, b) => b.score - a.score);
+                list.innerHTML = `<div class="font-bold text-slate-400 mb-1 border-b border-white/10 pb-1">Live Rankings</div>` +
+                    sorted.map((p, idx) => `
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="truncate max-w-[90px] font-semibold">${idx + 1}. ${p.name}</span>
+                            <span class="text-amber-400 font-extrabold">${p.score} pt</span>
+                        </div>
+                    `).join('');
+            }
+
+            usePowerUp(type) {
+                const local = this.engine.players.find(p => p.id === this.engine.localPlayerId);
+                if (!local) return;
+
+                soundEngine.playPowerup();
+                if (type === 'double') {
+                    local.doublePoints = true;
+                    this.showToast("2x Points Activated for this round!");
+                    document.getElementById('powerDoubleBtn').classList.add('opacity-40', 'pointer-events-none');
+                } else if (type === 'speed') {
+                    local.speed = 7;
+                    this.showToast("Speed Boost Activated!");
+                    setTimeout(() => local.speed = 4, 5000);
+                    document.getElementById('powerSpeedBtn').classList.add('opacity-40', 'pointer-events-none');
+                } else if (type === 'fifty') {
+                    const deck = this.decks.find(d => d.id === this.selectedDeckId) || this.decks[0];
+                    const q = deck.questions[this.currentQuestionIdx];
+                    const wrongIndices = [0, 1, 2, 3].filter(i => i !== q.correct).slice(0, 2);
+                    this.engine.updateTileOptions(q.options, wrongIndices);
+                    this.showToast("50:50 Activated - Two wrong answers hidden!");
+                    document.getElementById('powerFiftyBtn').classList.add('opacity-40', 'pointer-events-none');
+                }
+            }
+
+            endGame() {
+                if (this.engine) this.engine.stop();
+                this.showScreen('podiumScreen');
+                const sorted = [...this.engine.players].sort((a, b) => b.score - a.score);
+                
+                document.getElementById('podiumList').innerHTML = sorted.map((p, idx) => `
+                    <div class="p-4 rounded-2xl glass-panel border border-white/10 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl font-black ${idx === 0 ? 'text-amber-400' : 'text-slate-400'}">#${idx + 1}</span>
+                            <span class="font-bold text-sm">${p.name}</span>
+                        </div>
+                        <span class="font-black text-indigo-400 text-lg">${p.score} pts</span>
+                    </div>
+                `).join('');
+            }
+
+            async createOnlineRoom() {
+                if (!window.firebaseNet || !window.firebaseNet.db) {
+                    this.showToast("Firestore connection unavailable. Playing Solo.");
+                    return;
+                }
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                this.roomId = code;
+                this.isHost = true;
+                this.mode = 'online';
+
+                const { db, appId, currentUser } = window.firebaseNet;
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+
+                await setDoc(roomRef, {
+                    code,
+                    hostId: currentUser?.uid || 'host',
+                    deckId: this.selectedDeckId,
+                    status: 'lobby',
+                    players: [{
+                        id: currentUser?.uid || 'host',
+                        name: this.playerProfile.name,
+                        color: this.playerProfile.color,
+                        hat: this.playerProfile.hat,
+                        score: 0
+                    }]
+                });
+
+                document.getElementById('roomCodeDisplay').textContent = code;
+                document.getElementById('startGameHostBtn').classList.remove('hidden');
+                this.showScreen('roomLobbyScreen');
+                this.listenToRoom();
+            }
+
+            openJoinModal() {
+                document.getElementById('joinModal').classList.remove('hidden');
+            }
+
+            closeJoinModal() {
+                document.getElementById('joinModal').classList.add('hidden');
+            }
+
+            async joinOnlineRoom() {
+                const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+                if (!code || code.length !== 6) {
+                    this.showToast("Please enter a valid 6-digit code");
+                    return;
+                }
+
+                const { db, appId, currentUser } = window.firebaseNet;
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', code);
+                const snap = await getDoc(roomRef);
+
+                if (!snap.exists()) {
+                    this.showToast("Room not found!");
+                    return;
+                }
+
+                const data = snap.data();
+                data.players.push({
+                    id: currentUser?.uid || 'guest_' + Math.random(),
+                    name: this.playerProfile.name,
+                    color: this.playerProfile.color,
+                    hat: this.playerProfile.hat,
+                    score: 0
+                });
+
+                await updateDoc(roomRef, { players: data.players });
+                this.roomId = code;
+                this.isHost = false;
+                this.mode = 'online';
+
+                document.getElementById('roomCodeDisplay').textContent = code;
+                document.getElementById('startGameHostBtn').classList.add('hidden');
+                this.closeJoinModal();
+                this.showScreen('roomLobbyScreen');
+                this.listenToRoom();
+            }
+
+            listenToRoom() {
+                const { db, appId } = window.firebaseNet;
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', this.roomId);
+
+                onSnapshot(roomRef, (snap) => {
+                    if (!snap.exists()) return;
+                    const data = snap.data();
+
+                    // Render Player Lobby List
+                    document.getElementById('playerLobbyList').innerHTML = data.players.map(p => `
+                        <div class="p-3 rounded-xl bg-slate-800/60 border border-white/5 flex items-center gap-2">
+                            <div class="w-4 h-4 rounded-full" style="background:${p.color}"></div>
+                            <span class="text-xs font-bold truncate">${p.name}</span>
+                        </div>
+                    `).join('');
+
+                    if (data.status === 'playing' && document.getElementById('gameScreen').classList.contains('hidden')) {
+                        this.startOnlineGameClient(data);
+                    }
+                }, err => console.error("Room listener error:", err));
+            }
+
+            async startOnlineGame() {
+                if (!this.isHost) return;
+                const { db, appId } = window.firebaseNet;
+                const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', this.roomId);
+                await updateDoc(roomRef, { status: 'playing' });
+            }
+
+            startOnlineGameClient(data) {
+                this.engine.localPlayerId = window.firebaseNet.currentUser?.uid || 'guest';
+                this.engine.players = data.players.map((p, idx) => ({
+                    ...p,
+                    x: 100 + idx * 100,
+                    y: 200,
+                    speed: 4
+                }));
+
+                this.showScreen('gameScreen');
+                this.engine.resize();
+                this.engine.start();
+                this.loadQuestion();
+            }
+
+            copyRoomCode() {
+                const code = document.getElementById('roomCodeDisplay').textContent;
+                navigator.clipboard?.writeText(code) || document.execCommand('copy');
+                this.showToast("Room Code Copied to Clipboard!");
+            }
+
+            leaveRoom() {
+                this.roomId = null;
+                this.showLobby();
+            }
+
+            openAvatarModal() {
+                document.getElementById('avatarNameInput').value = this.playerProfile.name;
+                
+                // Color Picker Options
+                const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'];
+                document.getElementById('colorPickerContainer').innerHTML = colors.map(c => `
+                    <div onclick="game.setAvatarColor('${c}')" class="w-8 h-8 rounded-full cursor-pointer border-2 ${this.playerProfile.color === c ? 'border-white scale-110' : 'border-transparent'}" style="background:${c}"></div>
+                `).join('');
+
+                // Hat Options
+                const hats = ['none', 'crown', 'cap'];
+                document.getElementById('hatPickerContainer').innerHTML = hats.map(h => `
+                    <button onclick="game.setAvatarHat('${h}')" class="py-2 px-3 rounded-xl glass-panel text-xs font-bold capitalize border ${this.playerProfile.hat === h ? 'border-indigo-500 bg-indigo-500/20' : 'border-white/10'}">${h}</button>
+                `).join('');
+
+                document.getElementById('avatarModal').classList.remove('hidden');
+                this.renderAvatarPreview();
+            }
+
+            setAvatarColor(color) {
+                this.playerProfile.color = color;
+                this.openAvatarModal();
+            }
+
+            setAvatarHat(hat) {
+                this.playerProfile.hat = hat;
+                this.openAvatarModal();
+            }
+
+            renderAvatarPreview() {
+                const canvas = document.getElementById('avatarPreviewCanvas');
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const p = { x: 64, y: 64, color: this.playerProfile.color, hat: this.playerProfile.hat };
+
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 28, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eyes
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(p.x - 8, p.y - 6, 6, 0, Math.PI * 2);
+                ctx.arc(p.x + 8, p.y - 6, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(p.x - 6, p.y - 6, 3, 0, Math.PI * 2);
+                ctx.arc(p.x + 10, p.y - 6, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Hat
+                if (p.hat === 'crown') {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.beginPath();
+                    ctx.moveTo(p.x - 18, p.y - 20);
+                    ctx.lineTo(p.x - 18, p.y - 38);
+                    ctx.lineTo(p.x - 8, p.y - 26);
+                    ctx.lineTo(p.x, p.y - 42);
+                    ctx.lineTo(p.x + 8, p.y - 26);
+                    ctx.lineTo(p.x + 18, p.y - 38);
+                    ctx.lineTo(p.x + 18, p.y - 20);
+                    ctx.closePath();
+                    ctx.fill();
+                } else if (p.hat === 'cap') {
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y - 18, 20, Math.PI, 0);
+                    ctx.fill();
+                    ctx.fillRect(p.x - 20, p.y - 20, 32, 6);
+                }
+            }
+
+            saveAvatarSettings() {
+                const name = document.getElementById('avatarNameInput').value.trim();
+                if (name) this.playerProfile.name = name;
+                
+                localStorage.setItem('quiz_arena_avatar', JSON.stringify(this.playerProfile));
+                document.getElementById('headerPlayerName').textContent = this.playerProfile.name;
+                document.getElementById('avatarModal').classList.add('hidden');
+                this.showToast("Avatar Settings Saved!");
+            }
+
+            openDeckBuilder() {
+                this.customBuilderQuestions = [
+                    { q: '', options: ['', '', '', ''], correct: 0 }
+                ];
+                this.renderDeckBuilderFields();
+                document.getElementById('deckModal').classList.remove('hidden');
+            }
+
+            closeDeckModal() {
+                document.getElementById('deckModal').classList.add('hidden');
+            }
+
+            addCustomQuestionField() {
+                this.customBuilderQuestions.push({ q: '', options: ['', '', '', ''], correct: 0 });
+                this.renderDeckBuilderFields();
+            }
+
+            renderDeckBuilderFields() {
+                const container = document.getElementById('customQuestionsContainer');
+                container.innerHTML = this.customBuilderQuestions.map((q, qIdx) => `
+                    <div class="p-4 rounded-2xl bg-slate-900/60 border border-white/10 flex flex-col gap-3">
+                        <span class="text-xs font-bold text-indigo-400">Question #${qIdx + 1}</span>
+                        <input type="text" onchange="game.updateCustomQText(${qIdx}, this.value)" placeholder="Enter question..." value="${q.q}" class="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none">
+                        
+                        <div class="grid grid-cols-2 gap-2">
+                            ${[0, 1, 2, 3].map(oIdx => `
+                                <div class="flex items-center gap-2 bg-slate-800/50 p-2 rounded-xl border border-white/5">
+                                    <input type="radio" name="correct_${qIdx}" ${q.correct === oIdx ? 'checked' : ''} onchange="game.updateCustomCorrect(${qIdx}, ${oIdx})">
+                                    <input type="text" onchange="game.updateCustomOpt(${qIdx}, ${oIdx}, this.value)" placeholder="Option ${String.fromCharCode(65 + oIdx)}" value="${q.options[oIdx]}" class="w-full bg-transparent text-xs focus:outline-none">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            updateCustomQText(qIdx, val) { this.customBuilderQuestions[qIdx].q = val; }
+            updateCustomOpt(qIdx, oIdx, val) { this.customBuilderQuestions[qIdx].options[oIdx] = val; }
+            updateCustomCorrect(qIdx, oIdx) { this.customBuilderQuestions[qIdx].correct = oIdx; }
+
+            saveCustomDeck() {
+                const title = document.getElementById('deckTitleInput').value.trim();
+                if (!title) {
+                    this.showToast("Please enter a deck title!");
+                    return;
+                }
+
+                const newDeck = {
+                    id: 'custom_' + Date.now(),
+                    name: title,
+                    icon: 'fa-pen-ruler',
+                    questions: this.customBuilderQuestions
+                };
+
+                this.customDecks.push(newDeck);
+                localStorage.setItem('quiz_arena_decks', JSON.stringify(this.customDecks));
+                this.decks.push(newDeck);
+                this.selectedDeckId = newDeck.id;
+                this.renderDecks();
+                this.closeDeckModal();
+                this.showToast("Custom Deck Saved & Selected!");
+            }
+        }
+
+        // Initialize Game Instance on Window Load
+        let game = null;
+        window.onload = () => {
+            game = new QuizGameManager();
+            window.game = game;
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Quiz Arena 2D - Cross-Platform Multiplayer</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #090d16;
+            color: #f3f4f6;
+            overflow-x: hidden;
+            overscroll-behavior-y: contain;
+        }
+
+        .pixel-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        /* Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Arcade Tactical Buttons */
+        .btn-arcade {
+            transition: all 0.12s ease-out;
+            position: relative;
+            top: 0;
+            box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45);
+        }
+        .btn-arcade:active {
+            top: 4px;
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        /* Canvas Responsiveness */
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        /* Touch Virtual Joystick Elements */
+        .joystick-base {
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(6px);
+        }
+        .joystick-thumb {
+            background: rgba(99, 102, 241, 0.8);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col justify-between select-none antialiased">
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase Configuration
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'quiz-arena-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyDemoConfigKeyForLocalPreviewOnly",
+                authDomain: "demo-app.firebaseapp.com",
+                projectId: "demo-app",
+                storageBucket: "demo-app.appspot.com",
+                messagingSenderId: "123456789",
+                appId: "1:123456789:web:abcdef"
+            };
+
+        window.fbApp = initializeApp(firebaseConfig);
+        window.fbAuth = getAuth(window.fbApp);
+        window.fbDb = getFirestore(window.fbApp);
+        window.appId = appId;
+
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(window.fbAuth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(window.fbAuth);
+                }
+                window.currentUser = window.fbAuth.currentUser;
+            } catch (err) {
+                console.warn("Auth initialization operating in local/fallback state:", err);
+                window.currentUser = { uid: 'guest_' + Math.floor(Math.random()*10000) };
+            }
+        }
+        initAuth();
+    </script>
+
+    <header class="w-full glass-panel z-30 px-3 sm:px-6 py-2.5 flex justify-between items-center border-b border-slate-800">
+        <div class="flex items-center space-x-2.5 cursor-pointer" onclick="game.showMenu('lobby')">
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center font-extrabold text-lg shadow-lg shadow-indigo-500/20">
+                <i class="fa-solid fa-graduation-cap text-white text-base sm:text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-base sm:text-xl tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-pink-400 to-amber-300">
+                    QUIZ ARENA <span class="text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-indigo-900/80 text-indigo-300 border border-indigo-700/60 font-mono">2D</span>
+                </h1>
+                <p class="hidden sm:block text-[11px] text-slate-400 font-medium">Cross-Platform Touch & Web Battle</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <!-- Audio Toggle Button -->
+            <button id="soundToggleBtn" onclick="soundEngine.toggleMute()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition active:scale-95">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-xs sm:text-sm"></i>
+            </button>
+            
+            <!-- Custom Quiz Creator Button -->
+            <button onclick="game.showModal('customQuizModal')" class="hidden sm:flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-purple-900/40 hover:bg-purple-900/60 border border-purple-500/40 text-purple-200 text-xs sm:text-sm font-semibold transition active:scale-95">
+                <i class="fa-solid fa-square-plus"></i>
+                <span>Custom Quiz</span>
+            </button>
+
+            <!-- Avatar Customizer Trigger -->
+            <button onclick="game.showModal('avatarModal')" class="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-500/40 text-indigo-200 text-xs sm:text-sm font-semibold transition active:scale-95">
+                <i class="fa-solid fa-user-astronaut text-indigo-400"></i>
+                <span id="navAvatarName" class="max-w-[70px] sm:max-w-[100px] truncate">Player1</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="relative flex-1 flex flex-col justify-center items-center p-2 sm:p-4 w-full max-w-7xl mx-auto overflow-hidden">
+
+        <!-- 1. MAIN LOBBY MENU -->
+        <div id="lobbyScreen" class="w-full max-w-4xl flex flex-col gap-4 sm:gap-6 py-2 sm:py-4">
+            
+            <!-- Hero Header -->
+            <div class="text-center space-y-1.5 sm:space-y-2">
+                <span class="inline-block px-3 py-1 rounded-full text-[10px] sm:text-xs font-extrabold uppercase tracking-widest bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-inner">
+                    Cross-Platform 2D Interactive Arena
+                </span>
+                <h2 class="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight">
+                    Walk, Think & <span class="bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-400 to-indigo-400">Conquer!</span>
+                </h2>
+                <p class="text-slate-400 max-w-xl mx-auto text-xs sm:text-base px-2">
+                    Steer your avatar onto answer tiles before time runs out. Play instantly against AI bots or share room codes to play with friends on mobile & PC!
+                </p>
+            </div>
+
+            <!-- Mode Selection Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mt-1 sm:mt-2">
+                
+                <!-- Offline / Solo vs AI -->
+                <div class="glass-panel rounded-2xl p-4 sm:p-6 border border-slate-700/60 hover:border-indigo-500/50 transition flex flex-col justify-between group">
+                    <div class="space-y-2">
+                        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-xl sm:text-2xl group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <h3 class="text-lg sm:text-xl font-bold text-white">Solo & AI Bots</h3>
+                        <p class="text-slate-400 text-xs sm:text-sm">Instant single-player mode with smart customizable AI bots. Great for quick practice anywhere!</p>
+                    </div>
+
+                    <div class="mt-4 sm:mt-6 space-y-2">
+                        <div class="flex justify-between items-center text-xs text-slate-300 font-semibold px-1">
+                            <span>Bot Opponents:</span>
+                            <div class="flex space-x-1">
+                                <button onclick="game.setBotCount(1)" class="bot-cnt-btn px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-300 font-bold hover:bg-indigo-600 text-xs">1</button>
+                                <button onclick="game.setBotCount(3)" class="bot-cnt-btn px-2.5 py-1 rounded-md bg-indigo-600 border border-indigo-500 text-white font-bold text-xs">3</button>
+                                <button onclick="game.setBotCount(5)" class="bot-cnt-btn px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-300 font-bold hover:bg-indigo-600 text-xs">5</button>
+                            </div>
+                        </div>
+
+                        <button onclick="game.startSoloGame()" class="btn-arcade w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 font-bold text-white hover:brightness-110 text-sm sm:text-base flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-play"></i>
+                            <span>Play VS AI Bots</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Real-Time Online Multiplayer -->
+                <div class="glass-panel rounded-2xl p-4 sm:p-6 border border-slate-700/60 hover:border-pink-500/50 transition flex flex-col justify-between group">
+                    <div class="space-y-2">
+                        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-pink-600/20 border border-pink-500/30 flex items-center justify-center text-pink-400 text-xl sm:text-2xl group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <h3 class="text-lg sm:text-xl font-bold text-white">Online Rooms</h3>
+                        <p class="text-slate-400 text-xs sm:text-sm">Host a room code or join existing games across mobile phones, tablets, and desktops in real-time.</p>
+                    </div>
+
+                    <div class="mt-4 sm:mt-6 flex flex-col sm:flex-row gap-2">
+                        <button onclick="game.createOnlineRoom()" class="btn-arcade flex-1 py-3 px-3 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 font-bold text-white hover:brightness-110 text-xs sm:text-sm flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-plus-circle"></i>
+                            <span>Create Room</span>
+                        </button>
+                        <button onclick="game.showModal('joinRoomModal')" class="btn-arcade flex-1 py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 font-bold text-slate-200 text-xs sm:text-sm flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-right-to-bracket"></i>
+                            <span>Join Code</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quiz Category Selector Grid -->
+            <div class="glass-panel rounded-2xl p-3.5 sm:p-5 border border-slate-800 space-y-2.5">
+                <div class="flex justify-between items-center">
+                    <h4 class="font-bold text-slate-200 text-xs sm:text-sm flex items-center space-x-2">
+                        <i class="fa-solid fa-layer-group text-indigo-400"></i>
+                        <span>Select Topic Deck</span>
+                    </h4>
+                    <span id="selectedCategoryLabel" class="text-[10px] sm:text-xs text-indigo-400 font-semibold px-2 py-0.5 rounded bg-indigo-950/80 border border-indigo-800">
+                        GENERAL KNOWLEDGE
+                    </span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2" id="categoryContainer">
+                    <!-- Loaded dynamically in JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. ONLINE ROOM WAITING LOBBY -->
+        <div id="roomLobbyScreen" class="hidden w-full max-w-xl glass-panel rounded-2xl p-5 sm:p-6 border border-slate-700 space-y-5">
+            <div class="text-center space-y-2">
+                <span class="text-[10px] sm:text-xs uppercase font-extrabold text-emerald-400 tracking-wider">Multiplayer Waiting Room</span>
+                <h3 class="text-2xl sm:text-3xl font-black text-white flex items-center justify-center gap-2">
+                    Room: <span id="displayRoomCode" class="font-mono text-amber-400 bg-amber-950/80 px-3 py-1 rounded-lg border border-amber-500/30">------</span>
+                </h3>
+                <p class="text-slate-400 text-xs sm:text-sm">Share this code with players on any device to enter!</p>
+            </div>
+
+            <!-- Connected Players Grid -->
+            <div class="space-y-2">
+                <div class="flex justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider px-1">
+                    <span>Joined Players (<span id="playerCount">1</span>/8)</span>
+                    <span id="hostBadge" class="text-amber-400 font-bold">Host</span>
+                </div>
+                <div id="joinedPlayersList" class="grid grid-cols-2 sm:grid-cols-3 gap-2 min-h-[100px] p-3 rounded-xl bg-slate-950/80 border border-slate-800 max-h-[180px] overflow-y-auto">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <div class="flex gap-2.5">
+                <button onclick="game.leaveRoom()" class="btn-arcade w-1/3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm border border-slate-600">
+                    Leave
+                </button>
+                <button id="startGameHostBtn" onclick="game.startOnlineGame()" class="btn-arcade w-2/3 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs sm:text-base hover:brightness-110">
+                    Start Match
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. ARENA GAMEPLAY DISPLAY -->
+        <div id="gameScreen" class="hidden w-full flex flex-col items-center gap-2 sm:gap-3">
+            
+            <!-- Question HUD Bar -->
+            <div class="w-full glass-panel rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-700/80 shadow-2xl relative overflow-hidden">
+                <div class="flex justify-between items-center mb-1.5 sm:mb-2">
+                    <span id="questionProgress" class="text-[10px] sm:text-xs font-extrabold text-indigo-400 tracking-wider uppercase px-2.5 py-0.5 sm:py-1 rounded-md bg-indigo-950/80 border border-indigo-800">
+                        Q 1/10
+                    </span>
+                    <div class="flex items-center space-x-1.5">
+                        <i class="fa-solid fa-stopwatch text-amber-400 animate-pulse text-xs sm:text-sm"></i>
+                        <span id="timerDisplay" class="pixel-font text-amber-400 font-bold text-base sm:text-xl">15</span>
+                    </div>
+                </div>
+
+                <!-- Question Text Header -->
+                <h2 id="questionText" class="text-sm sm:text-xl md:text-2xl font-bold text-white text-center min-h-[48px] sm:min-h-[56px] flex items-center justify-center py-1 px-2 leading-snug">
+                    Loading question...
+                </h2>
+
+                <div class="flex justify-between items-center text-[10px] sm:text-xs text-slate-400 pt-1.5 border-t border-slate-800/80">
+                    <div class="flex items-center space-x-1">
+                        <span>Deck:</span>
+                        <span id="hudCategory" class="text-slate-200 font-bold">General</span>
+                    </div>
+                    <div id="activePowerupBadge" class="hidden text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-bounce">
+                        ⚡ 2x Points Active
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas Viewport Container -->
+            <div class="relative w-full aspect-[4/3] max-w-[800px] max-h-[480px] bg-slate-900 rounded-xl sm:rounded-2xl border-2 border-slate-700/80 shadow-2xl overflow-hidden flex items-center justify-center">
+                
+                <canvas id="arenaCanvas" class="w-full h-full rounded-lg"></canvas>
+
+                <!-- Floating Power-Up Buttons -->
+                <div class="absolute top-2.5 right-2.5 flex flex-col gap-2 z-20">
+                    <button onclick="game.usePowerup('double')" id="btnPowerupDouble" title="Double Points" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl glass-panel border border-amber-500/50 text-amber-400 flex items-center justify-center text-sm sm:text-base hover:scale-110 active:scale-95 transition shadow-lg">
+                        <i class="fa-solid fa-bolt"></i>
+                    </button>
+                    <button onclick="game.usePowerup('hint')" id="btnPowerupHint" title="50:50 Hint" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl glass-panel border border-cyan-500/50 text-cyan-400 flex items-center justify-center text-sm sm:text-base hover:scale-110 active:scale-95 transition shadow-lg">
+                        <i class="fa-solid fa-lightbulb"></i>
+                    </button>
+                    <button onclick="game.usePowerup('speed')" id="btnPowerupSpeed" title="Speed Boost" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl glass-panel border border-emerald-500/50 text-emerald-400 flex items-center justify-center text-sm sm:text-base hover:scale-110 active:scale-95 transition shadow-lg">
+                        <i class="fa-solid fa-gauge-high"></i>
+                    </button>
+                </div>
+
+                <!-- On-Screen Virtual Touch Joystick (Mobile & Tablet) -->
+                <div id="touchJoystickContainer" class="absolute bottom-3 left-3 w-28 h-28 sm:hidden z-20 touch-none">
+                    <div id="joystickBase" class="joystick-base w-full h-full rounded-full relative flex items-center justify-center">
+                        <div id="joystickThumb" class="joystick-thumb w-12 h-12 rounded-full absolute transition-transform duration-75"></div>
+                    </div>
+                </div>
+
+                <!-- Emoji Reaction Wheel Floating Overlay -->
+                <div class="absolute bottom-3 right-3 flex gap-1.5 sm:gap-2 z-20">
+                    <button onclick="game.sendReaction('🔥')" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center text-sm sm:text-base hover:scale-110 active:scale-95">🔥</button>
+                    <button onclick="game.sendReaction('💡')" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center text-sm sm:text-base hover:scale-110 active:scale-95">💡</button>
+                    <button onclick="game.sendReaction('😎')" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center text-sm sm:text-base hover:scale-110 active:scale-95">😎</button>
+                    <button onclick="game.sendReaction('😭')" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center text-sm sm:text-base hover:scale-110 active:scale-95">😭</button>
+                </div>
+            </div>
+
+            <!-- Scoreboard Stream Below Arena -->
+            <div id="liveLeaderboard" class="w-full max-w-[800px] grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
+                <!-- Live ranks generated here -->
+            </div>
+        </div>
+
+        <!-- 4. MATCH RESULTS PODIUM -->
+        <div id="podiumScreen" class="hidden w-full max-w-xl glass-panel rounded-2xl p-5 sm:p-6 border border-slate-700 text-center space-y-5">
+            <div class="space-y-1">
+                <span class="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-amber-400">Quiz Complete</span>
+                <h2 class="text-2xl sm:text-3xl font-black text-white">Arena Champions</h2>
+            </div>
+
+            <!-- Podiums -->
+            <div class="flex justify-center items-end h-48 sm:h-56 gap-2 sm:gap-3 my-2 px-2 pt-4 bg-slate-950/80 rounded-xl border border-slate-800">
+                <!-- 2nd Place -->
+                <div id="podium2" class="flex-1 flex flex-col items-center justify-end">
+                    <div class="mb-1.5 flex flex-col items-center">
+                        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-400/20 border-2 border-slate-400 flex items-center justify-center text-sm sm:text-lg">🥈</div>
+                        <span id="podium2Name" class="text-[10px] sm:text-xs font-bold text-slate-300 mt-1 truncate max-w-[70px]">Player 2</span>
+                        <span id="podium2Score" class="text-[9px] sm:text-[10px] font-mono text-slate-400">0 pts</span>
+                    </div>
+                    <div class="w-full bg-gradient-to-t from-slate-700 to-slate-500 rounded-t-lg h-24 sm:h-28 flex items-center justify-center font-black text-xl sm:text-2xl text-slate-900">2</div>
+                </div>
+
+                <!-- 1st Place -->
+                <div id="podium1" class="flex-1 flex flex-col items-center justify-end">
+                    <div class="mb-1.5 flex flex-col items-center">
+                        <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-400/20 border-2 border-amber-400 flex items-center justify-center text-lg sm:text-2xl animate-bounce">👑</div>
+                        <span id="podium1Name" class="text-xs sm:text-sm font-bold text-amber-300 mt-1 truncate max-w-[80px]">Winner</span>
+                        <span id="podium1Score" class="text-[10px] sm:text-xs font-mono text-amber-400">0 pts</span>
+                    </div>
+                    <div class="w-full bg-gradient-to-t from-amber-600 to-amber-400 rounded-t-lg h-32 sm:h-36 flex items-center justify-center font-black text-2xl sm:text-3xl text-amber-950">1</div>
+                </div>
+
+                <!-- 3rd Place -->
+                <div id="podium3" class="flex-1 flex flex-col items-center justify-end">
+                    <div class="mb-1.5 flex flex-col items-center">
+                        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-amber-800/20 border-2 border-amber-700 flex items-center justify-center text-sm sm:text-lg">🥉</div>
+                        <span id="podium3Name" class="text-[10px] sm:text-xs font-bold text-amber-600 mt-1 truncate max-w-[70px]">Player 3</span>
+                        <span id="podium3Score" class="text-[9px] sm:text-[10px] font-mono text-amber-700">0 pts</span>
+                    </div>
+                    <div class="w-full bg-gradient-to-t from-amber-900 to-amber-700 rounded-t-lg h-16 sm:h-20 flex items-center justify-center font-black text-lg sm:text-xl text-amber-950">3</div>
+                </div>
+            </div>
+
+            <button onclick="game.showMenu('lobby')" class="btn-arcade w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm sm:text-base">
+                Return to Lobby
+            </button>
+        </div>
+
+    </main>
+
+    <!-- AVATAR CUSTOMIZER MODAL -->
+    <div id="avatarModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-5 sm:p-6 border border-slate-700 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg sm:text-xl font-bold text-white">Customize Avatar</h3>
+                <button onclick="game.closeModal('avatarModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="flex justify-center py-3 bg-slate-950 rounded-xl border border-slate-800">
+                <canvas id="avatarPreviewCanvas" width="100" height="100"></canvas>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Display Name</label>
+                    <input type="text" id="avatarNameInput" maxlength="12" value="Player1" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Skin Color</label>
+                    <div class="flex gap-2" id="colorPickerContainer"></div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Headgear / Hat</label>
+                    <div class="grid grid-cols-4 gap-2" id="hatPickerContainer"></div>
+                </div>
+            </div>
+
+            <button onclick="game.saveAvatarSettings()" class="btn-arcade w-full py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-500">
+                Save & Close
+            </button>
+        </div>
+    </div>
+
+    <!-- JOIN ROOM MODAL -->
+    <div id="joinRoomModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="glass-panel w-full max-w-sm rounded-2xl p-5 sm:p-6 border border-slate-700 space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg sm:text-xl font-bold text-white">Join Room</h3>
+                <button onclick="game.closeModal('joinRoomModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div>
+                <label class="text-xs font-semibold text-slate-400 block mb-1">Enter Room Code</label>
+                <input type="text" id="roomCodeInput" uppercase maxlength="6" placeholder="e.g. A8X9P1" class="w-full px-3 py-3 rounded-xl bg-slate-950 border border-slate-700 text-center font-mono text-xl text-amber-400 tracking-widest focus:outline-none focus:border-amber-500">
+            </div>
+
+            <button onclick="game.joinOnlineRoom()" class="btn-arcade w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-500">
+                Join Arena
+            </button>
+        </div>
+    </div>
+
+    <!-- CUSTOM QUIZ DECK BUILDER MODAL -->
+    <div id="customQuizModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="glass-panel w-full max-w-lg rounded-2xl p-5 sm:p-6 border border-slate-700 space-y-3.5 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg sm:text-xl font-bold text-white">Custom Question Builder</h3>
+                <button onclick="game.closeModal('customQuizModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <div class="space-y-2.5">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 block mb-1">Question Prompt</label>
+                    <input type="text" id="customQText" placeholder="What is the speed of light in vacuum?" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs sm:text-sm focus:outline-none focus:border-purple-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[11px] font-semibold text-emerald-400 block mb-0.5">Option A (Correct)</label>
+                        <input type="text" id="customOptA" placeholder="Correct Answer" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-emerald-700/60 text-white text-xs">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-red-400 block mb-0.5">Option B</label>
+                        <input type="text" id="customOptB" placeholder="Wrong Option 1" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-red-400 block mb-0.5">Option C</label>
+                        <input type="text" id="customOptC" placeholder="Wrong Option 2" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-red-400 block mb-0.5">Option D</label>
+                        <input type="text" id="customOptD" placeholder="Wrong Option 3" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-xs">
+                    </div>
+                </div>
+
+                <button onclick="game.addCustomQuestion()" class="w-full py-2 rounded-xl bg-slate-800 border border-slate-600 text-slate-200 hover:bg-slate-700 text-xs font-semibold">
+                    + Add Question to Deck
+                </button>
+
+                <div class="space-y-1">
+                    <span class="text-xs text-slate-400 font-semibold">Created Deck (<span id="customQCount">0</span>)</span>
+                    <div id="customQList" class="max-h-28 overflow-y-auto space-y-1 pr-1"></div>
+                </div>
+            </div>
+
+            <button onclick="game.saveAndPlayCustomDeck()" class="btn-arcade w-full py-3 rounded-xl bg-purple-600 text-white font-bold text-sm hover:bg-purple-500">
+                Play Custom Deck
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification Toast Box -->
+    <div id="toastBox" class="fixed bottom-4 right-4 z-50 transform translate-y-20 opacity-0 transition-all duration-300 glass-panel px-4 py-3 rounded-xl border border-indigo-500/50 shadow-2xl flex items-center space-x-2.5">
+        <i id="toastIcon" class="fa-solid fa-circle-info text-indigo-400"></i>
+        <span id="toastMsg" class="text-xs sm:text-sm font-semibold text-slate-200">Message</span>
+    </div>
+
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+            }
+
+            toggleMute() {
+                this.muted = !this.muted;
+                const icon = document.getElementById('soundIcon');
+                if (this.muted) {
+                    icon.className = 'fa-solid fa-volume-xmark text-red-400';
+                } else {
+                    icon.className = 'fa-solid fa-volume-high text-slate-300';
+                    this.playTick();
+                }
+            }
+
+            playTone(freq, type, duration, vol = 0.1) {
+                if (this.muted) return;
+                this.init();
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {}
+            }
+
+            playTick() { this.playTone(600, 'sine', 0.04, 0.04); }
+            playZoneSelect() { this.playTone(480, 'triangle', 0.08, 0.08); }
+            
+            playCorrect() {
+                if (this.muted) return;
+                this.init();
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 'sine', 0.15, 0.1), i * 60);
+                });
+            }
+
+            playWrong() {
+                if (this.muted) return;
+                this.init();
+                this.playTone(180, 'sawtooth', 0.2, 0.12);
+                setTimeout(() => this.playTone(130, 'sawtooth', 0.25, 0.12), 120);
+            }
+
+            playFanfare() {
+                if (this.muted) return;
+                [400, 500, 600, 800].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 'square', 0.2, 0.08), i * 90);
+                });
+            }
+        }
+
+        const soundEngine = new SoundEngine();
+    </script>
+
+    <script>
+        const QUIZ_DATABASE = {
+            general: [
+                { q: "Which planet in our solar system is known as the Red Planet?", options: ["Mars", "Venus", "Jupiter", "Saturn"], answer: 0 },
+                { q: "What is the largest ocean on Planet Earth?", options: ["Pacific Ocean", "Atlantic Ocean", "Indian Ocean", "Arctic Ocean"], answer: 0 },
+                { q: "How many chemical elements are in the periodic table?", options: ["118", "108", "120", "98"], answer: 0 },
+                { q: "Who painted the famous artwork Mona Lisa?", options: ["Leonardo da Vinci", "Vincent van Gogh", "Pablo Picasso", "Claude Monet"], answer: 0 },
+                { q: "What is the hardest natural substance on Earth?", options: ["Diamond", "Titanium", "Graphene", "Quartz"], answer: 0 }
+            ],
+            science: [
+                { q: "What is the chemical symbol for Gold?", options: ["Au", "Ag", "Fe", "Gd"], answer: 0 },
+                { q: "Roughly what speed does light travel in a vacuum?", options: ["300,000 km/s", "150,000 km/s", "1,000,000 km/s", "500,000 km/s"], answer: 0 },
+                { q: "Which gas do plants absorb during photosynthesis?", options: ["Carbon Dioxide", "Oxygen", "Nitrogen", "Hydrogen"], answer: 0 },
+                { q: "Which subatomic particle carries a negative electric charge?", options: ["Electron", "Proton", "Neutron", "Photon"], answer: 0 }
+            ],
+            gaming: [
+                { q: "In Minecraft, what valuable item do Endermen drop?", options: ["Ender Pearl", "Ender Dust", "Obsidian", "Ender Eye"], answer: 0 },
+                { q: "Who is the primary protagonist of 'The Legend of Zelda'?", options: ["Link", "Zelda", "Ganon", "Navi"], answer: 0 },
+                { q: "In what year was the original Super Mario Bros released?", options: ["1985", "1983", "1990", "1988"], answer: 0 },
+                { q: "What classic arcade company created Pac-Man?", options: ["Namco", "Nintendo", "Sega", "Atari"], answer: 0 }
+            ],
+            popculture: [
+                { q: "Which music artist is universally styled as the 'Queen of Pop'?", options: ["Madonna", "Beyoncé", "Lady Gaga", "Taylor Swift"], answer: 0 },
+                { q: "What fictional kingdom is Black Panther set in?", options: ["Wakanda", "Zamunda", "Genovia", "Latveria"], answer: 0 },
+                { q: "How many seasons did the hit TV show 'Friends' air?", options: ["10", "8", "12", "9"], answer: 0 }
+            ]
+        };
+
+        const AVATAR_COLORS = ["#6366f1", "#ec4899", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4"];
+        const AVATAR_HATS = ["none", "crown", "cap", "wizard", "headphones"];
+    </script>
+
+    <script>
+        class ArenaCanvas {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Fixed Virtual Logical Grid Dimensions
+                this.width = 800;
+                this.height = 600;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+
+                // Answer Pad Zone Definitions
+                this.zones = [
+                    { id: 0, label: "A", x: 60, y: 170, w: 320, h: 160, color: "#3b82f6" },
+                    { id: 1, label: "B", x: 420, y: 170, w: 320, h: 160, color: "#ef4444" },
+                    { id: 2, label: "C", x: 60, y: 370, w: 320, h: 160, color: "#10b981" },
+                    { id: 3, label: "D", x: 420, y: 370, w: 320, h: 160, color: "#f59e0b" }
+                ];
+
+                this.particles = [];
+                this.animId = null;
+            }
+
+            startLoop(playersGetter, optionsGetter, revealCorrectGetter, eliminatedGetter) {
+                const render = () => {
+                    this.drawArena(playersGetter(), optionsGetter(), revealCorrectGetter(), eliminatedGetter());
+                    this.animId = requestAnimationFrame(render);
+                };
+                if (this.animId) cancelAnimationFrame(this.animId);
+                render();
+            }
+
+            stopLoop() {
+                if (this.animId) cancelAnimationFrame(this.animId);
+            }
+
+            drawArena(players, options, revealCorrectIdx, eliminatedZones) {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // 1. Grid Background
+                ctx.fillStyle = "#0a0f1d";
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.035)";
+                ctx.lineWidth = 2;
+                const gridSize = 40;
+                for (let x = 0; x < this.width; x += gridSize) {
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, this.height); ctx.stroke();
+                }
+                for (let y = 0; y < this.height; y += gridSize) {
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(this.width, y); ctx.stroke();
+                }
+
+                // 2. Draw Answer Zones
+                this.zones.forEach((zone, idx) => {
+                    const isRevealed = revealCorrectIdx !== null;
+                    const isCorrect = revealCorrectIdx === idx;
+                    const isEliminated = eliminatedZones && eliminatedZones.includes(idx);
+                    
+                    ctx.save();
+                    if (isRevealed) {
+                        ctx.fillStyle = isCorrect ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.15)";
+                        ctx.strokeStyle = isCorrect ? "#10b981" : "#ef4444";
+                    } else if (isEliminated) {
+                        ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+                        ctx.strokeStyle = "rgba(239, 68, 68, 0.3)";
+                    } else {
+                        ctx.fillStyle = "rgba(30, 41, 59, 0.6)";
+                        ctx.strokeStyle = zone.color;
+                    }
+
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.roundRect(zone.x, zone.y, zone.w, zone.h, 16);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Letter Badge
+                    ctx.fillStyle = isEliminated ? "#475569" : zone.color;
+                    ctx.beginPath();
+                    ctx.arc(zone.x + 30, zone.y + 30, 18, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 16px 'Outfit', sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(zone.label, zone.x + 30, zone.y + 30);
+
+                    // Text Option
+                    if (options && options[idx]) {
+                        ctx.fillStyle = isEliminated ? "#64748b" : "#f8fafc";
+                        ctx.font = "600 15px 'Outfit', sans-serif";
+                        ctx.textAlign = "left";
+                        
+                        const text = options[idx];
+                        ctx.fillText(text.length > 28 ? text.substring(0, 26) + '...' : text, zone.x + 60, zone.y + 30);
+                    }
+
+                    if (isEliminated) {
+                        ctx.strokeStyle = "#ef4444";
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.moveTo(zone.x + 20, zone.y + 20); ctx.lineTo(zone.x + zone.w - 20, zone.y + zone.h - 20);
+                        ctx.moveTo(zone.x + zone.w - 20, zone.y + 20); ctx.lineTo(zone.x + 20, zone.y + zone.h - 20);
+                        ctx.stroke();
+                    }
+
+                    ctx.restore();
+                });
+
+                // 3. Center Spawn Area
+                ctx.fillStyle = "rgba(99, 102, 241, 0.12)";
+                ctx.strokeStyle = "rgba(129, 140, 248, 0.35)";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.width / 2, 75, 45, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                ctx.font = "11px 'Outfit', sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("SPAWN ZONE", this.width / 2, 75);
+
+                // 4. Render Player Avatars
+                players.forEach(p => this.drawAvatar(p));
+
+                // 5. Particles Update
+                this.updateParticles();
+            }
+
+            drawAvatar(player) {
+                const ctx = this.ctx;
+                ctx.save();
+
+                const x = player.x;
+                const y = player.y;
+                const radius = 22;
+
+                // Shadow
+                ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+                ctx.beginPath();
+                ctx.ellipse(x, y + radius - 2, radius * 0.9, radius * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Body Base
+                ctx.fillStyle = player.color || "#6366f1";
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                // Eyes
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(x - 6, y - 4, 5, 0, Math.PI * 2);
+                ctx.arc(x + 6, y - 4, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = "#0f172a";
+                ctx.beginPath();
+                ctx.arc(x - 5, y - 4, 2.5, 0, Math.PI * 2);
+                ctx.arc(x + 5, y - 4, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Hat
+                this.drawHat(player.hat, x, y - radius);
+
+                // Nametag Badge
+                ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+                ctx.lineWidth = 1;
+                const nameWidth = ctx.measureText(player.name).width + 12;
+                ctx.beginPath();
+                ctx.roundRect(x - nameWidth / 2, y - radius - 22, nameWidth, 18, 6);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = "#f8fafc";
+                ctx.font = "bold 11px 'Outfit', sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(player.name, x, y - radius - 13);
+
+                // Emoji Reaction Speech Bubble
+                if (player.reaction) {
+                    ctx.fillStyle = "#ffffff";
+                    ctx.beginPath();
+                    ctx.arc(x + radius, y - radius, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.font = "14px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(player.reaction, x + radius, y - radius);
+                }
+
+                ctx.restore();
+            }
+
+            drawHat(hatType, x, y) {
+                const ctx = this.ctx;
+                if (!hatType || hatType === 'none') return;
+
+                ctx.save();
+                if (hatType === 'crown') {
+                    ctx.fillStyle = "#f59e0b";
+                    ctx.beginPath();
+                    ctx.moveTo(x - 12, y + 4); ctx.lineTo(x - 12, y - 8); ctx.lineTo(x - 6, y - 2);
+                    ctx.lineTo(x, y - 12); ctx.lineTo(x + 6, y - 2); ctx.lineTo(x + 12, y - 8);
+                    ctx.lineTo(x + 12, y + 4); ctx.closePath(); ctx.fill();
+                } else if (hatType === 'cap') {
+                    ctx.fillStyle = "#ef4444";
+                    ctx.beginPath(); ctx.arc(x, y + 2, 12, Math.PI, 0); ctx.fill();
+                    ctx.fillRect(x - 14, y, 18, 4);
+                } else if (hatType === 'wizard') {
+                    ctx.fillStyle = "#8b5cf6";
+                    ctx.beginPath(); ctx.moveTo(x - 14, y + 4); ctx.lineTo(x, y - 20); ctx.lineTo(x + 14, y + 4); ctx.closePath(); ctx.fill();
+                } else if (hatType === 'headphones') {
+                    ctx.strokeStyle = "#06b6d4"; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.arc(x, y + 10, 16, Math.PI, 0); ctx.stroke();
+                    ctx.fillStyle = "#06b6d4"; ctx.fillRect(x - 18, y + 6, 5, 10); ctx.fillRect(x + 13, y + 6, 5, 10);
+                }
+                ctx.restore();
+            }
+
+            spawnConfetti(x, y) {
+                for (let i = 0; i < 30; i++) {
+                    this.particles.push({
+                        x: x, y: y,
+                        vx: (Math.random() - 0.5) * 8,
+                        vy: (Math.random() - 0.8) * 8,
+                        color: ["#10b981", "#f59e0b", "#ec4899", "#3b82f6"][Math.floor(Math.random() * 4)],
+                        size: Math.random() * 5 + 3,
+                        life: 1.0
+                    });
+                }
+            }
+
+            updateParticles() {
+                const ctx = this.ctx;
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.2;
+                    p.life -= 0.025;
+
+                    if (p.life <= 0) {
+                        this.particles.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            getZoneAt(x, y) {
+                return this.zones.find(z => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
+            }
+        }
+    </script>
+
+    <script>
+        class QuizGame {
+            constructor() {
+                this.mode = 'solo';
+                this.roomCode = null;
+                this.isHost = false;
+                this.botCount = 3;
+
+                this.localPlayer = {
+                    id: 'p_local_' + Math.floor(Math.random()*10000),
+                    name: 'Player1',
+                    color: AVATAR_COLORS[0],
+                    hat: 'crown',
+                    x: 400,
+                    y: 75,
+                    score: 0,
+                    selectedZone: null,
+                    doubleActive: false,
+                    speedBoost: false,
+                    reaction: null
+                };
+
+                this.players = [this.localPlayer];
+                this.currentCategory = 'general';
+                this.questions = [];
+                this.currentQIndex = 0;
+                this.timer = 15;
+                this.timerInterval = null;
+                this.revealCorrectIdx = null;
+                this.eliminatedZones = [];
+                this.customQuestions = [];
+
+                // Input State Vectors
+                this.keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, w: false, a: false, s: false, d: false };
+                this.joystickVector = { x: 0, y: 0 };
+
+                this.arena = null;
+                this.roomUnsubscribe = null;
+            }
+
+            init() {
+                this.arena = new ArenaCanvas('arenaCanvas');
+                this.setupCategoryUI();
+                this.setupAvatarModal();
+                this.setupControls();
+
+                // Start rendering loop
+                this.arena.startLoop(
+                    () => this.players,
+                    () => this.questions[this.currentQIndex]?.options,
+                    () => this.revealCorrectIdx,
+                    () => this.eliminatedZones
+                );
+            }
+
+            // MENU SCREENS
+            showMenu(menuId) {
+                ['lobbyScreen', 'roomLobbyScreen', 'gameScreen', 'podiumScreen'].forEach(id => {
+                    document.getElementById(id).classList.add('hidden');
+                });
+                if (menuId === 'lobby') document.getElementById('lobbyScreen').classList.remove('hidden');
+                if (menuId === 'roomLobby') document.getElementById('roomLobbyScreen').classList.remove('hidden');
+                if (menuId === 'game') document.getElementById('gameScreen').classList.remove('hidden');
+                if (menuId === 'podium') document.getElementById('podiumScreen').classList.remove('hidden');
+            }
+
+            showModal(id) { document.getElementById(id).classList.remove('hidden'); }
+            closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+            showToast(msg) {
+                const toast = document.getElementById('toastBox');
+                document.getElementById('toastMsg').innerText = msg;
+                toast.classList.remove('translate-y-20', 'opacity-0');
+                setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2800);
+            }
+
+            setBotCount(cnt) {
+                this.botCount = cnt;
+                document.querySelectorAll('.bot-cnt-btn').forEach(b => {
+                    b.classList.remove('bg-indigo-600', 'border-indigo-500', 'text-white');
+                    b.classList.add('bg-slate-800', 'border-slate-700', 'text-slate-300');
+                });
+                event.target.classList.add('bg-indigo-600', 'border-indigo-500', 'text-white');
+            }
+
+            // CATEGORIES & AVATARS
+            setupCategoryUI() {
+                const container = document.getElementById('categoryContainer');
+                const categories = [
+                    { id: 'general', name: 'General', icon: 'fa-globe' },
+                    { id: 'science', name: 'Science', icon: 'fa-flask' },
+                    { id: 'gaming', name: 'Gaming', icon: 'fa-gamepad' },
+                    { id: 'popculture', name: 'Pop Culture', icon: 'fa-film' },
+                    { id: 'custom', name: 'Custom Deck', icon: 'fa-pen-to-square' }
+                ];
+
+                container.innerHTML = categories.map(cat => `
+                    <button onclick="game.selectCategory('${cat.id}')" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-indigo-500 flex flex-col items-center gap-1 transition text-slate-300">
+                        <i class="fa-solid ${cat.icon} text-base sm:text-lg"></i>
+                        <span class="text-[11px] font-semibold">${cat.name}</span>
+                    </button>
+                `).join('');
+            }
+
+            selectCategory(catId) {
+                if (catId === 'custom' && this.customQuestions.length === 0) {
+                    this.showModal('customQuizModal');
+                    return;
+                }
+                this.currentCategory = catId;
+                document.getElementById('selectedCategoryLabel').innerText = catId.toUpperCase();
+                this.showToast(`Selected Category: ${catId.toUpperCase()}`);
+            }
+
+            setupAvatarModal() {
+                const colorBox = document.getElementById('colorPickerContainer');
+                colorBox.innerHTML = AVATAR_COLORS.map(c => `
+                    <button onclick="game.updateAvatarColor('${c}')" class="w-8 h-8 rounded-full border-2 border-white/40 hover:scale-110 transition" style="background:${c}"></button>
+                `).join('');
+
+                const hatBox = document.getElementById('hatPickerContainer');
+                hatBox.innerHTML = AVATAR_HATS.map(h => `
+                    <button onclick="game.updateAvatarHat('${h}')" class="py-1.5 px-1 rounded-lg bg-slate-800 border border-slate-700 hover:border-indigo-500 text-[11px] font-semibold capitalize">
+                        ${h}
+                    </button>
+                `).join('');
+
+                this.renderAvatarPreview();
+            }
+
+            updateAvatarColor(c) { this.localPlayer.color = c; this.renderAvatarPreview(); }
+            updateAvatarHat(h) { this.localPlayer.hat = h; this.renderAvatarPreview(); }
+
+            renderAvatarPreview() {
+                const canvas = document.getElementById('avatarPreviewCanvas');
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const dummy = { ...this.localPlayer, x: 50, y: 50, name: document.getElementById('avatarNameInput')?.value || 'Player' };
+                this.arena.drawAvatar.call({ ctx: ctx, drawHat: this.arena.drawHat }, dummy);
+            }
+
+            saveAvatarSettings() {
+                const name = document.getElementById('avatarNameInput').value.trim() || 'Player1';
+                this.localPlayer.name = name;
+                document.getElementById('navAvatarName').innerText = name;
+                this.closeModal('avatarModal');
+                this.showToast('Avatar configuration saved!');
+            }
+
+            // CROSS-PLATFORM INPUTS (TOUCH JOYSTICK + KEYBOARD + CANVAS TAP)
+            setupControls() {
+                window.addEventListener('keydown', e => { if (this.keys.hasOwnProperty(e.key)) this.keys[e.key] = true; });
+                window.addEventListener('keyup', e => { if (this.keys.hasOwnProperty(e.key)) this.keys[e.key] = false; });
+
+                // Touch Virtual Joystick Mechanics
+                const joystickBase = document.getElementById('joystickBase');
+                const joystickThumb = document.getElementById('joystickThumb');
+                let touchId = null;
+
+                const handleTouchMove = (e) => {
+                    for (let touch of e.changedTouches) {
+                        if (touch.identifier === touchId) {
+                            const rect = joystickBase.getBoundingClientRect();
+                            const centerX = rect.left + rect.width / 2;
+                            const centerY = rect.top + rect.height / 2;
+
+                            const deltaX = touch.clientX - centerX;
+                            const deltaY = touch.clientY - centerY;
+                            const distance = Math.min(40, Math.hypot(deltaX, deltaY));
+                            const angle = Math.atan2(deltaY, deltaX);
+
+                            const thumbX = Math.cos(angle) * distance;
+                            const thumbY = Math.sin(angle) * distance;
+                            joystickThumb.style.transform = `translate(${thumbX}px, ${thumbY}px)`;
+
+                            this.joystickVector.x = (Math.cos(angle) * distance) / 40;
+                            this.joystickVector.y = (Math.sin(angle) * distance) / 40;
+                        }
+                    }
+                };
+
+                joystickBase.addEventListener('touchstart', (e) => {
+                    if (touchId === null) {
+                        touchId = e.changedTouches[0].identifier;
+                        handleTouchMove(e);
+                    }
+                });
+
+                window.addEventListener('touchmove', (e) => { if (touchId !== null) handleTouchMove(e); }, { passive: false });
+                
+                const resetJoystick = (e) => {
+                    for (let touch of e.changedTouches) {
+                        if (touch.identifier === touchId) {
+                            touchId = null;
+                            joystickThumb.style.transform = `translate(0px, 0px)`;
+                            this.joystickVector = { x: 0, y: 0 };
+                        }
+                    }
+                };
+                window.addEventListener('touchend', resetJoystick);
+                window.addEventListener('touchcancel', resetJoystick);
+
+                // Tap-To-Move Canvas Control
+                this.arena.canvas.addEventListener('pointerdown', (e) => {
+                    if (touchId !== null) return;
+                    const rect = this.arena.canvas.getBoundingClientRect();
+                    const scaleX = this.arena.width / rect.width;
+                    const scaleY = this.arena.height / rect.height;
+
+                    const targetX = (e.clientX - rect.left) * scaleX;
+                    const targetY = (e.clientY - rect.top) * scaleY;
+                    this.localPlayer.targetPoint = { x: targetX, y: targetY };
+                });
+
+                // Ticker loop for movement physics
+                setInterval(() => this.updateMovement(), 1000 / 60);
+            }
+
+            updateMovement() {
+                if (document.getElementById('gameScreen').classList.contains('hidden')) return;
+
+                let baseSpeed = this.localPlayer.speedBoost ? 6.5 : 4.0;
+                let dx = 0, dy = 0;
+
+                // Keyboard Vector
+                if (this.keys.ArrowLeft || this.keys.a) dx -= 1;
+                if (this.keys.ArrowRight || this.keys.d) dx += 1;
+                if (this.keys.ArrowUp || this.keys.w) dy -= 1;
+                if (this.keys.ArrowDown || this.keys.s) dy += 1;
+
+                // Virtual Joystick Vector Override
+                if (this.joystickVector.x !== 0 || this.joystickVector.y !== 0) {
+                    dx = this.joystickVector.x;
+                    dy = this.joystickVector.y;
+                    this.localPlayer.targetPoint = null;
+                }
+
+                // Apply Keyboard or Joystick Velocity
+                if (dx !== 0 || dy !== 0) {
+                    this.localPlayer.targetPoint = null;
+                    this.localPlayer.x = Math.max(30, Math.min(770, this.localPlayer.x + dx * baseSpeed));
+                    this.localPlayer.y = Math.max(30, Math.min(570, this.localPlayer.y + dy * baseSpeed));
+                } 
+                // Tap-to-move interpolation
+                else if (this.localPlayer.targetPoint) {
+                    const tx = this.localPlayer.targetPoint.x;
+                    const ty = this.localPlayer.targetPoint.y;
+                    const dist = Math.hypot(tx - this.localPlayer.x, ty - this.localPlayer.y);
+
+                    if (dist > 5) {
+                        this.localPlayer.x += ((tx - this.localPlayer.x) / dist) * baseSpeed;
+                        this.localPlayer.y += ((ty - this.localPlayer.y) / dist) * baseSpeed;
+                    } else {
+                        this.localPlayer.targetPoint = null;
+                    }
+                }
+
+                // Check active answer zone collision
+                const currentZone = this.arena.getZoneAt(this.localPlayer.x, this.localPlayer.y);
+                if (currentZone && this.localPlayer.selectedZone !== currentZone.id) {
+                    this.localPlayer.selectedZone = currentZone.id;
+                    soundEngine.playZoneSelect();
+                } else if (!currentZone) {
+                    this.localPlayer.selectedZone = null;
+                }
+
+                // Sync online if playing room mode
+                if (this.mode === 'online' && this.roomCode) {
+                    this.syncLocalPlayerOnline();
+                }
+
+                // Update AI Bots
+                if (this.mode === 'solo') {
+                    this.updateBotBehaviors();
+                }
+            }
+
+            // BOT AI LOGIC
+            setupBots() {
+                this.players = [this.localPlayer];
+                const names = ["Bot-Alpha", "Bot-Nexus", "Bot-Pixel", "Bot-Titan", "Bot-Zeta"];
+                for (let i = 0; i < this.botCount; i++) {
+                    this.players.push({
+                        id: 'bot_' + i,
+                        name: names[i],
+                        color: AVATAR_COLORS[(i + 1) % AVATAR_COLORS.length],
+                        hat: AVATAR_HATS[(i + 1) % AVATAR_HATS.length],
+                        x: 250 + (i * 70),
+                        y: 75,
+                        score: 0,
+                        selectedZone: null,
+                        targetZone: null,
+                        isBot: true
+                    });
+                }
+            }
+
+            updateBotBehaviors() {
+                if (this.timer > 12) return;
+
+                this.players.filter(p => p.isBot).forEach(bot => {
+                    if (bot.targetZone === null) {
+                        const currQ = this.questions[this.currentQIndex];
+                        if (currQ) {
+                            const isCorrect = Math.random() < 0.72;
+                            bot.targetZone = isCorrect ? currQ.answer : Math.floor(Math.random() * 4);
+                        }
+                    }
+
+                    if (bot.targetZone !== null) {
+                        const zone = this.arena.zones[bot.targetZone];
+                        const tx = zone.x + zone.w / 2 + (Math.sin(bot.x) * 20);
+                        const ty = zone.y + zone.h / 2 + (Math.cos(bot.y) * 20);
+
+                        const dist = Math.hypot(tx - bot.x, ty - bot.y);
+                        if (dist > 5) {
+                            bot.x += ((tx - bot.x) / dist) * 2.8;
+                            bot.y += ((ty - bot.y) / dist) * 2.8;
+                            bot.selectedZone = this.arena.getZoneAt(bot.x, bot.y)?.id || null;
+                        }
+                    }
+                });
+            }
+
+            // SOLO GAME ENGINE
+            startSoloGame() {
+                this.mode = 'solo';
+                this.setupBots();
+                this.loadDeck();
+                this.showMenu('game');
+                this.startNextQuestion();
+            }
+
+            loadDeck() {
+                if (this.currentCategory === 'custom' && this.customQuestions.length > 0) {
+                    this.questions = [...this.customQuestions];
+                } else {
+                    this.questions = [...(QUIZ_DATABASE[this.currentCategory] || QUIZ_DATABASE.general)];
+                }
+                this.currentQIndex = 0;
+            }
+
+            startNextQuestion() {
+                if (this.currentQIndex >= this.questions.length) {
+                    this.finishMatch();
+                    return;
+                }
+
+                const currentQ = this.questions[this.currentQIndex];
+                document.getElementById('questionProgress').innerText = `Q ${this.currentQIndex + 1}/${this.questions.length}`;
+                document.getElementById('questionText').innerText = currentQ.q;
+                document.getElementById('hudCategory').innerText = this.currentCategory.toUpperCase();
+
+                this.revealCorrectIdx = null;
+                this.eliminatedZones = [];
+                this.localPlayer.speedBoost = false;
+
+                this.players.forEach((p, idx) => {
+                    p.x = 220 + (idx * 65);
+                    p.y = 75;
+                    p.selectedZone = null;
+                    if (p.isBot) p.targetZone = null;
+                });
+
+                this.timer = 15;
+                document.getElementById('timerDisplay').innerText = this.timer;
+                clearInterval(this.timerInterval);
+
+                this.timerInterval = setInterval(() => {
+                    this.timer--;
+                    document.getElementById('timerDisplay').innerText = this.timer;
+                    soundEngine.playTick();
+
+                    if (this.timer <= 0) {
+                        clearInterval(this.timerInterval);
+                        this.evaluateRound();
+                    }
+                }, 1000);
+
+                this.updateLiveLeaderboardUI();
+            }
+
+            evaluateRound() {
+                const currentQ = this.questions[this.currentQIndex];
+                this.revealCorrectIdx = currentQ.answer;
+
+                this.players.forEach(p => {
+                    if (p.selectedZone === currentQ.answer) {
+                        let pts = 100 + (this.timer * 10);
+                        if (p.doubleActive) {
+                            pts *= 2;
+                            p.doubleActive = false;
+                        }
+                        p.score += pts;
+
+                        if (p.id === this.localPlayer.id) {
+                            soundEngine.playCorrect();
+                            this.arena.spawnConfetti(p.x, p.y);
+                        }
+                    } else if (p.id === this.localPlayer.id) {
+                        soundEngine.playWrong();
+                    }
+                });
+
+                document.getElementById('activePowerupBadge').classList.add('hidden');
+                this.updateLiveLeaderboardUI();
+
+                setTimeout(() => {
+                    this.currentQIndex++;
+                    this.startNextQuestion();
+                }, 3500);
+            }
+
+            updateLiveLeaderboardUI() {
+                const container = document.getElementById('liveLeaderboard');
+                const sorted = [...this.players].sort((a, b) => b.score - a.score);
+
+                container.innerHTML = sorted.map((p, rank) => `
+                    <div class="glass-panel p-2 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <span class="w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center ${rank === 0 ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'}">
+                                ${rank + 1}
+                            </span>
+                            <span class="text-xs font-bold text-slate-200 truncate max-w-[70px]">${p.name}</span>
+                        </div>
+                        <span class="pixel-font text-[11px] text-indigo-400 font-bold">${p.score}</span>
+                    </div>
+                `).join('');
+            }
+
+            finishMatch() {
+                soundEngine.playFanfare();
+                this.showMenu('podium');
+
+                const sorted = [...this.players].sort((a, b) => b.score - a.score);
+                document.getElementById('podium1Name').innerText = sorted[0]?.name || '-';
+                document.getElementById('podium1Score').innerText = (sorted[0]?.score || 0) + ' pts';
+
+                document.getElementById('podium2Name').innerText = sorted[1]?.name || '-';
+                document.getElementById('podium2Score').innerText = (sorted[1]?.score || 0) + ' pts';
+
+                document.getElementById('podium3Name').innerText = sorted[2]?.name || '-';
+                document.getElementById('podium3Score').innerText = (sorted[2]?.score || 0) + ' pts';
+            }
+
+            // POWERUPS & EMOJI REACTIONS
+            usePowerup(type) {
+                if (type === 'double') {
+                    this.localPlayer.doubleActive = true;
+                    document.getElementById('activePowerupBadge').classList.remove('hidden');
+                    this.showToast("⚡ 2x Points Multiplier Active!");
+                } else if (type === 'hint') {
+                    const currentQ = this.questions[this.currentQIndex];
+                    if (currentQ) {
+                        const wrong = [0, 1, 2, 3].filter(z => z !== currentQ.answer && !this.eliminatedZones.includes(z));
+                        if (wrong.length > 0) {
+                            const elim = wrong[Math.floor(Math.random() * wrong.length)];
+                            this.eliminatedZones.push(elim);
+                            this.showToast(`💡 Hint: Zone ${this.arena.zones[elim].label} is INCORRECT!`);
+                        }
+                    }
+                } else if (type === 'speed') {
+                    this.localPlayer.speedBoost = true;
+                    this.showToast("🚀 Speed Boost Active!");
+                }
+            }
+
+            sendReaction(emoji) {
+                this.localPlayer.reaction = emoji;
+                if (this.mode === 'online') this.syncLocalPlayerOnline();
+                setTimeout(() => {
+                    this.localPlayer.reaction = null;
+                    if (this.mode === 'online') this.syncLocalPlayerOnline();
+                }, 2000);
+            }
+
+            // CUSTOM QUIZ BUILDER
+            addCustomQuestion() {
+                const q = document.getElementById('customQText').value.trim();
+                const a = document.getElementById('customOptA').value.trim();
+                const b = document.getElementById('customOptB').value.trim();
+                const c = document.getElementById('customOptC').value.trim();
+                const d = document.getElementById('customOptD').value.trim();
+
+                if (!q || !a || !b || !c || !d) {
+                    this.showToast("Fill all options!");
+                    return;
+                }
+
+                this.customQuestions.push({ q, options: [a, b, c, d], answer: 0 });
+                document.getElementById('customQText').value = '';
+                document.getElementById('customOptA').value = '';
+                document.getElementById('customOptB').value = '';
+                document.getElementById('customOptC').value = '';
+                document.getElementById('customOptD').value = '';
+
+                this.updateCustomQList();
+                this.showToast("Added to custom deck!");
+            }
+
+            updateCustomQList() {
+                document.getElementById('customQCount').innerText = this.customQuestions.length;
+                const list = document.getElementById('customQList');
+                list.innerHTML = this.customQuestions.map((q, i) => `
+                    <div class="text-[11px] p-2 rounded bg-slate-950 text-slate-300 border border-slate-800 flex justify-between">
+                        <span class="truncate max-w-[200px]">${i + 1}. ${q.q}</span>
+                        <span class="text-emerald-400 font-semibold">${q.options[0]}</span>
+                    </div>
+                `).join('');
+            }
+
+            saveAndPlayCustomDeck() {
+                if (this.customQuestions.length === 0) {
+                    this.showToast("Add a question first!");
+                    return;
+                }
+                this.currentCategory = 'custom';
+                this.closeModal('customQuizModal');
+                this.startSoloGame();
+            }
+
+            // REAL-TIME FIREBASE MULTIPLAYER
+            async createOnlineRoom() {
+                if (!window.fbDb) {
+                    this.showToast("Offline fallback active.");
+                    return;
+                }
+
+                this.mode = 'online';
+                this.isHost = true;
+                this.roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                
+                const roomRef = doc(window.fbDb, 'artifacts', window.appId, 'public', 'data', 'rooms', this.roomCode);
+                
+                const roomData = {
+                    code: this.roomCode,
+                    hostId: window.currentUser.uid,
+                    category: this.currentCategory,
+                    status: 'waiting',
+                    players: { [this.localPlayer.id]: this.localPlayer }
+                };
+
+                try {
+                    await setDoc(roomRef, roomData);
+                    document.getElementById('displayRoomCode').innerText = this.roomCode;
+                    this.showMenu('roomLobby');
+                    this.listenToRoom(this.roomCode);
+                } catch (e) {
+                    console.error("Room creation error:", e);
+                    this.showToast("Failed to create room.");
+                }
+            }
+
+            async joinOnlineRoom() {
+                const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+                if (!code) return;
+
+                const roomRef = doc(window.fbDb, 'artifacts', window.appId, 'public', 'data', 'rooms', code);
+                try {
+                    const snap = await getDoc(roomRef);
+                    if (!snap.exists()) {
+                        this.showToast("Room code not found!");
+                        return;
+                    }
+
+                    this.mode = 'online';
+                    this.isHost = false;
+                    this.roomCode = code;
+
+                    await updateDoc(roomRef, { [`players.${this.localPlayer.id}`]: this.localPlayer });
+
+                    document.getElementById('displayRoomCode').innerText = code;
+                    document.getElementById('startGameHostBtn').classList.add('hidden');
+                    this.closeModal('joinRoomModal');
+                    this.showMenu('roomLobby');
+                    this.listenToRoom(code);
+                } catch (e) {
+                    console.error("Error joining room:", e);
+                    this.showToast("Could not join room.");
+                }
+            }
+
+            listenToRoom(code) {
+                const roomRef = doc(window.fbDb, 'artifacts', window.appId, 'public', 'data', 'rooms', code);
+                this.roomUnsubscribe = onSnapshot(roomRef, (snapshot) => {
+                    if (!snapshot.exists()) return;
+                    const data = snapshot.data();
+
+                    if (data.players) {
+                        this.players = Object.values(data.players);
+                        document.getElementById('playerCount').innerText = this.players.length;
+
+                        const list = document.getElementById('joinedPlayersList');
+                        list.innerHTML = this.players.map(p => `
+                            <div class="flex items-center space-x-1.5 p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                <div class="w-3 h-3 rounded-full" style="background:${p.color}"></div>
+                                <span class="text-xs font-bold text-slate-200 truncate">${p.name}</span>
+                            </div>
+                        `).join('');
+                    }
+
+                    if (data.status === 'playing' && document.getElementById('gameScreen').classList.contains('hidden')) {
+                        this.loadDeck();
+                        this.showMenu('game');
+                        this.startNextQuestion();
+                    }
+                }, (err) => console.error(err));
+            }
+
+            async syncLocalPlayerOnline() {
+                if (!this.roomCode || this.mode !== 'online') return;
+                const roomRef = doc(window.fbDb, 'artifacts', window.appId, 'public', 'data', 'rooms', this.roomCode);
+                try {
+                    await updateDoc(roomRef, {
+                        [`players.${this.localPlayer.id}.x`]: this.localPlayer.x,
+                        [`players.${this.localPlayer.id}.y`]: this.localPlayer.y,
+                        [`players.${this.localPlayer.id}.selectedZone`]: this.localPlayer.selectedZone,
+                        [`players.${this.localPlayer.id}.reaction`]: this.localPlayer.reaction
+                    });
+                } catch (e) {}
+            }
+
+            async startOnlineGame() {
+                if (!this.isHost || !this.roomCode) return;
+                const roomRef = doc(window.fbDb, 'artifacts', window.appId, 'public', 'data', 'rooms', this.roomCode);
+                await updateDoc(roomRef, { status: 'playing' });
+            }
+
+            leaveRoom() {
+                if (this.roomUnsubscribe) this.roomUnsubscribe();
+                this.roomCode = null;
+                this.showMenu('lobby');
+            }
+        }
+
+        // Global Initialization on Load
+        let game;
+        window.onload = function() {
+            game = new QuizGame();
+            game.init();
+        };
+    </script>
+</body>
+</html>
